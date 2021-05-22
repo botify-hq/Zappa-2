@@ -24,6 +24,7 @@ import time
 import zipfile
 from builtins import bytes, input
 from datetime import datetime, timedelta
+from typing import Optional, List, Dict, Any, KeysView
 
 import argcomplete
 import botocore
@@ -34,7 +35,7 @@ import requests
 import slugify
 import toml
 import yaml
-from click import BaseCommand, Context
+from click import Command, Context
 from click.exceptions import ClickException
 from click.globals import push_context
 from dateutil import parser
@@ -77,59 +78,59 @@ class ZappaCLI:
     """
 
     # CLI
-    vargs = None
-    command = None
-    stage_env = None
+    vargs:Dict[str, Any] = {}
+    command:str = ''
+    stage_env:Optional[str] = None
 
     # Zappa settings
-    zappa = None
-    zappa_settings = None
-    load_credentials = True
-    disable_progress = False
+    zappa:Zappa = None
+    zappa_settings:Dict[str, Any] = {}
+    load_credentials:bool = True
+    disable_progress:bool = False
 
     # Specific settings
-    api_stage = None
-    app_function = None
-    aws_region = None
+    api_stage:str = ''
+    app_function:Optional[str] = None
+    aws_region:Optional[str] = None
     debug = None
     prebuild_script = None
-    project_name = None
-    profile_name = None
-    lambda_arn = None
-    lambda_name = None
-    lambda_description = None
-    lambda_concurrency = None
-    s3_bucket_name = None
-    settings_file = None
-    zip_path = None
-    handler_path = None
+    project_name:Optional[str] = None
+    profile_name:Optional[str] = None
+    lambda_arn:Optional[str] = None
+    lambda_name:Optional[str] = None
+    lambda_description:Optional[str] = None
+    lambda_concurrency:Optional[int] = None
+    s3_bucket_name:Optional[str] = None
+    settings_file:Optional[str] = None
+    zip_path:str = ''
+    handler_path:Optional[str] = None
     vpc_config = None
     memory_size = None
     use_apigateway = None
     lambda_handler = None
     django_settings = None
-    manage_roles = True
+    manage_roles:bool = True
     exception_handler = None
     environment_variables = None
     authorizer = None
-    xray_tracing = False
+    xray_tracing:bool = False
     aws_kms_key_arn = ''
     context_header_mappings = None
-    tags = []
+    tags:Dict[str,Any] = {}
     layers = None
 
     stage_name_env_pattern = re.compile('^[a-zA-Z0-9_]+$')
 
-    def __init__(self):
-        self._stage_config_overrides = {}  # change using self.override_stage_config_setting(key, val)
+    def __init__(self) -> None:
+        self._stage_config_overrides:Dict[str, Any] = {}  # change using self.override_stage_config_setting(key, val)
 
     @property
-    def stage_config(self):
+    def stage_config(self) -> Dict[str,Any]:
         """
         A shortcut property for settings of a stage.
         """
 
-        def get_stage_setting(stage, extended_stages=None):
+        def get_stage_setting(stage: str, extended_stages: Optional[List[str]] = None) -> Dict[str, Any]:
             if extended_stages is None:
                 extended_stages = []
 
@@ -161,14 +162,14 @@ class ZappaCLI:
         return settings
 
     @property
-    def stage_config_overrides(self):
+    def stage_config_overrides(self) -> Any:
         """
         Returns zappa_settings we forcefully override for the current stage
         set by `self.override_stage_config_setting(key, value)`
         """
         return getattr(self, '_stage_config_overrides', {}).get(self.api_stage, {})
 
-    def override_stage_config_setting(self, key, val):
+    def override_stage_config_setting(self, key: str, val: Any) -> None:
         """
         Forcefully override a setting set by zappa_settings (for the current stage only)
         :param key: settings key
@@ -177,7 +178,7 @@ class ZappaCLI:
         self._stage_config_overrides = getattr(self, '_stage_config_overrides', {})
         self._stage_config_overrides.setdefault(self.api_stage, {})[key] = val
 
-    def handle(self, argv=None):
+    def handle(self, argv: Optional[str] = None) -> None:
         """
         Main function.
 
@@ -328,7 +329,7 @@ class ZappaCLI:
         ##
         # Rollback
         ##
-        def positive_int(s):
+        def positive_int(s: str) -> int:
             """ Ensure an arg is positive """
             i = int(s)
             if i < 0:
@@ -472,7 +473,7 @@ class ZappaCLI:
 
         self.command = args.command
 
-        self.disable_progress = self.vargs.get('disable_progress')
+        self.disable_progress = self.vargs.get('disable_progress', False)
         if self.vargs.get('quiet'):
             self.silence()
 
@@ -492,10 +493,10 @@ class ZappaCLI:
 
         # Should we execute this for all stages, or just one?
         all_stages = self.vargs.get('all')
-        stages = []
+        stages:List[str] = []
 
         if all_stages: # All stages!
-            stages = self.zappa_settings.keys()
+            stages = list(self.zappa_settings.keys())
         else: # Just one env.
             if not self.stage_env:
                 # If there's only one stage defined in the settings,
@@ -515,7 +516,7 @@ class ZappaCLI:
                 e.show()
                 sys.exit(e.exit_code)
 
-    def dispatch_command(self, command, stage):
+    def dispatch_command(self, command: str, stage: str) -> None:
         """
         Given a command to execute and stage,
         execute that command.
@@ -537,10 +538,7 @@ class ZappaCLI:
         try:
             self.load_settings(self.vargs.get('settings_file'))
         except ValueError as e:
-            if hasattr(e, 'message'):
-                print("Error: {}".format(e.message))
-            else:
-                print(str(e))
+            print(str(e))
             sys.exit(-1)
         self.callback('settings')
 
@@ -600,7 +598,7 @@ class ZappaCLI:
                 non_http=self.vargs['non_http'],
                 since=self.vargs['since'],
                 filter_pattern=self.vargs['filter'],
-                force_colorize=self.vargs['force_color'] or None,
+                force_colorize=self.vargs.get('force_color', False),
                 keep_open=not self.vargs['disable_keep_open']
             )
         elif command == 'undeploy': # pragma: no cover
@@ -626,7 +624,7 @@ class ZappaCLI:
     # The Commands
     ##
 
-    def package(self, output=None):
+    def package(self, output:Optional[str]=None) -> None:
         """
         Only build the package
         """
@@ -644,7 +642,7 @@ class ZappaCLI:
         size = human_size(os.path.getsize(self.zip_path))
         click.echo(click.style("Package created", fg="green", bold=True) + ": " + click.style(self.zip_path, bold=True) + " (" + size + ")")
 
-    def template(self, lambda_arn, role_arn, output=None, json=False):
+    def template(self, lambda_arn:str, role_arn:str, output:Optional[str]=None, is_json:bool=False) -> None:
         """
         Only build the template file.
         """
@@ -676,13 +674,13 @@ class ZappaCLI:
         with open(template_file, 'wb') as out:
             out.write(bytes(template.to_json(indent=None, separators=(',',':')), "utf-8"))
 
-        if not json:
+        if not is_json:
             click.echo(click.style("Template created", fg="green", bold=True) + ": " + click.style(template_file, bold=True))
         else:
-            with open(template_file, 'r') as out:
-                print(out.read())
+            with open(template_file, 'rb') as out:
+                print(json.dumps(out))
 
-    def deploy(self, source_zip=None):
+    def deploy(self, source_zip:Optional[str]=None) -> None:
         """
         Package your project, upload it to S3, register the Lambda function
         and create the API Gateway routes.
@@ -860,7 +858,7 @@ class ZappaCLI:
 
         click.echo(deployment_string)
 
-    def update(self, source_zip=None, no_upload=False):
+    def update(self, source_zip:Optional[str]=None, no_upload:bool=False) -> None:
         """
         Repackage and update the function code.
         """
@@ -1063,7 +1061,7 @@ class ZappaCLI:
 
         click.echo(deployed_string)
 
-    def rollback(self, revision):
+    def rollback(self, revision:int) -> None:
         """
         Rollsback the currently deploy lambda code to a previous revision.
         """
@@ -1074,7 +1072,7 @@ class ZappaCLI:
             self.lambda_name, versions_back=revision)
         print("Done!")
 
-    def tail(self, since, filter_pattern, limit=10000, keep_open=True, colorize=True, http=False, non_http=False, force_colorize=False):
+    def tail(self, since:str, filter_pattern:str, limit:int=10000, keep_open:bool=True, colorize:bool=True, http:bool=False, non_http:bool=False, force_colorize:bool=False) -> None:
         """
         Tail this function's logs.
 
@@ -1108,7 +1106,7 @@ class ZappaCLI:
             except SystemExit:
                 os._exit(130)
 
-    def undeploy(self, no_confirm=False, remove_logs=False):
+    def undeploy(self, no_confirm:bool=False, remove_logs:bool=False) -> None:
         """
         Tear down an existing deployment.
         """
@@ -1159,7 +1157,7 @@ class ZappaCLI:
                 lambda_configs.add(trigger['source'].split('_')[0])
             self.zappa.update_cognito(self.lambda_name, user_pool, lambda_configs, self.lambda_arn)
 
-    def schedule(self):
+    def schedule(self) -> None:
         """
         Given a a list of functions and a schedule to execute them,
         setup up regular execution.
@@ -1231,7 +1229,7 @@ class ZappaCLI:
                             fg='red'
                         ))
 
-    def unschedule(self):
+    def unschedule(self) -> None:
         """
         Given a a list of scheduled functions,
         tear down their regular execution.
@@ -1266,7 +1264,7 @@ class ZappaCLI:
             removed_arns = self.zappa.remove_async_sns_topic(self.lambda_name)
             click.echo('SNS Topic removed: %s' % ', '.join(removed_arns))
 
-    def invoke(self, function_name, raw_python=False, command=None, no_color=False):
+    def invoke(self, function_name:str, raw_python:bool=False, command:Optional[str]=None, no_color:bool=False) -> None:
         """
         Invoke a remote function.
         """
@@ -1308,7 +1306,7 @@ class ZappaCLI:
                 "{} error occurred while invoking command.".format(response['FunctionError'])
 )
 
-    def format_invoke_command(self, string):
+    def format_invoke_command(self, string:str) -> str:
         """
         Formats correctly the string output from the invoke() method,
         replacing line breaks and tabs when necessary.
@@ -1327,7 +1325,7 @@ class ZappaCLI:
 
         return formated_response
 
-    def colorize_invoke_command(self, string):
+    def colorize_invoke_command(self, string:str):
         """
         Apply various heuristics to return a colorized version the invoke
         command string. If these fail, simply return the string in plaintext.
@@ -1395,12 +1393,12 @@ class ZappaCLI:
         except Exception:
             return string
 
-    def status(self, return_json=False):
+    def status(self, return_json:bool=False) -> None:
         """
         Describe the status of the current deployment.
         """
 
-        def tabular_print(title, value):
+        def tabular_print(title:str, value:Any) -> None:
             """
             Convenience function for priting formatted table items.
             """
@@ -1527,7 +1525,7 @@ class ZappaCLI:
 
         return True
 
-    def check_stage_name(self, stage_name):
+    def check_stage_name(self, stage_name: str) -> bool:
         """
         Make sure the stage name matches the AWS-allowed pattern
 
@@ -1540,7 +1538,7 @@ class ZappaCLI:
             return True
         raise ValueError("AWS requires stage name to match a-zA-Z0-9_")
 
-    def check_environment(self, environment):
+    def check_environment(self, environment: str) -> bool:
         """
         Make sure the environment contains only strings
 
@@ -1556,7 +1554,7 @@ class ZappaCLI:
         else:
             return True
 
-    def init(self, settings_file="zappa_settings.json"):
+    def init(self, settings_file:str="zappa_settings.json") -> None:
         """
         Initialize a new Zappa project by creating a new zappa_settings.json in a guided process.
 
@@ -1805,7 +1803,7 @@ class ZappaCLI:
 
         return
 
-    def certify(self, no_confirm=True, manual=False):
+    def certify(self, no_confirm:bool=True, manual:bool=False) -> None:
         """
         Register or update a domain certificate for this env.
         """
@@ -1930,7 +1928,7 @@ class ZappaCLI:
     ##
     # Shell
     ##
-    def shell(self):
+    def shell(self) -> None:
         """
         Spawn a debug shell.
         """
@@ -1942,7 +1940,7 @@ class ZappaCLI:
     # Utility
     ##
 
-    def callback(self, position):
+    def callback(self, position:str) -> None:
         """
         Allows the execution of custom code between creation of the zip file and deployment to AWS.
 
@@ -1985,7 +1983,7 @@ class ZappaCLI:
             cb_func = getattr(module_, cb_func_name)
             cb_func(self) # Call the function passing self
 
-    def check_for_update(self):
+    def check_for_update(self) -> None:
         """
         Print a warning if there's a new Zappa version available.
         """
@@ -2002,7 +2000,7 @@ class ZappaCLI:
             print(e)
             return
 
-    def load_settings(self, settings_file=None, session=None):
+    def load_settings(self, settings_file:Optional[str]=None, session:Optional[botocore.session.Sessions]=None) -> Zappa:
         """
         Load the local zappa_settings file.
 
@@ -2171,7 +2169,7 @@ class ZappaCLI:
 
         return settings_file
 
-    def load_settings_file(self, settings_file=None):
+    def load_settings_file(self, settings_file:Optional[str]=None) -> None:
         """
         Load our settings file.
         """
@@ -2201,10 +2199,12 @@ class ZappaCLI:
                 except ValueError: # pragma: no cover
                     raise ValueError("Unable to load the Zappa settings JSON. It may be malformed.")
 
-    def create_package(self, output=None):
+    def create_package(self, output:Optional[str] = None) -> None:
         """
         Ensure that the package can be properly configured,
         and then create it.
+
+        output: location to output the created package
 
         """
 
@@ -2437,7 +2437,7 @@ class ZappaCLI:
             lambda_zip.write(temp_settings.name, 'zappa_settings.py')
             os.unlink(temp_settings.name)
 
-    def remove_local_zip(self):
+    def remove_local_zip(self) -> None:
         """
         Remove our local zip file.
         """
@@ -2451,7 +2451,7 @@ class ZappaCLI:
             except Exception as e: # pragma: no cover
                 sys.exit(-1)
 
-    def remove_uploaded_zip(self):
+    def remove_uploaded_zip(self) -> None:
         """
         Remove the local and S3 zip file after uploading and updating.
         """
@@ -2463,7 +2463,7 @@ class ZappaCLI:
                 # Need to keep the project zip as the slim handler uses it.
                 self.zappa.remove_from_s3(self.handler_path, self.s3_bucket_name)
 
-    def on_exit(self):
+    def on_exit(self) -> None:
         """
         Cleanup after the command finishes.
         Always called: SystemExit, KeyboardInterrupt and any other Exception that occurs.
@@ -2475,7 +2475,7 @@ class ZappaCLI:
 
             self.remove_local_zip()
 
-    def print_logs(self, logs, colorize=True, http=False, non_http=False, force_colorize=None):
+    def print_logs(self, logs: List[dict], colorize:bool=True, http:bool=False, non_http:bool=False, force_colorize:Optional[bool]=None) -> None:
         """
         Parse, filter and print logs to the console.
 
@@ -2510,7 +2510,7 @@ class ZappaCLI:
                 else:
                     click.echo(click.style("[", fg='cyan') + click.style(str(timestamp), bold=True) + click.style("]", fg='cyan') + self.colorize_log_entry(message.strip()), color=force_colorize)
 
-    def is_http_log_entry(self, string):
+    def is_http_log_entry(self, string:str) -> bool:
         """
         Determines if a log entry is an HTTP-formatted log string or not.
         """
@@ -2528,10 +2528,10 @@ class ZappaCLI:
 
         return False
 
-    def get_project_name(self):
+    def get_project_name(self) -> str:
         return slugify.slugify(os.getcwd().split(os.sep)[-1])[:15]
 
-    def colorize_log_entry(self, string):
+    def colorize_log_entry(self, string: str) -> str:
         """
         Apply various heuristics to return a colorized version of a string.
         If these fail, simply return the string in plaintext.
@@ -2599,7 +2599,7 @@ class ZappaCLI:
         except Exception as e: # pragma: no cover
             return string
 
-    def execute_prebuild_script(self):
+    def execute_prebuild_script(self) -> None:
         """
         Parse and execute the prebuild_script from the zappa_settings.
 
@@ -2637,7 +2637,7 @@ class ZappaCLI:
         prebuild_function = getattr(module_, pb_func)
         prebuild_function()  # Call the function
 
-    def collision_warning(self, item):
+    def collision_warning(self, item: str) -> None:
         """
         Given a string, print a warning if this could
         collide with a Zappa core package module.
@@ -2657,7 +2657,7 @@ class ZappaCLI:
                            click.style(namespace_collision, bold=True) +
                            "! You may want to rename that file.")
 
-    def deploy_api_gateway(self, api_id):
+    def deploy_api_gateway(self, api_id:str) -> str:
         cache_cluster_enabled = self.stage_config.get('cache_cluster_enabled', False)
         cache_cluster_size = str(self.stage_config.get('cache_cluster_size', .5))
         endpoint_url = self.zappa.deploy_api_gateway(
@@ -2673,7 +2673,7 @@ class ZappaCLI:
         )
         return endpoint_url
 
-    def check_venv(self):
+    def check_venv(self) -> None:
         """ Ensure we're inside a virtualenv. """
         if self.vargs and self.vargs.get("no_venv"):
             return
@@ -2687,7 +2687,7 @@ class ZappaCLI:
                 click.style("Zappa", bold=True) + " requires an " + click.style("active virtual environment", bold=True, fg="red") + "!\n" +
                 "Learn more about virtual environments here: " + click.style("http://docs.python-guide.org/en/latest/dev/virtualenvs/", bold=False, fg="cyan"))
 
-    def silence(self):
+    def silence(self) -> None:
         """
         Route all stdout to null.
         """
@@ -2695,7 +2695,7 @@ class ZappaCLI:
         sys.stdout = open(os.devnull, 'w')
         sys.stderr = open(os.devnull, 'w')
 
-    def touch_endpoint(self, endpoint_url):
+    def touch_endpoint(self, endpoint_url:str) -> None:
         """
         Test the deployed endpoint with a GET request.
         """
@@ -2740,7 +2740,7 @@ class ZappaCLI:
 # Main
 ####################################################################
 
-def shamelessly_promote():
+def shamelessly_promote() -> None:
     """
     Shamelessly promote our little community.
     """
@@ -2755,7 +2755,7 @@ def shamelessly_promote():
     click.echo("Love!,")
     click.echo(" ~ Team " + click.style("Zappa", bold=True) + "!")
 
-def disable_click_colors():
+def disable_click_colors() -> None:
     """
     Set a Click context where colors are disabled. Creates a throwaway BaseCommand
     to play nicely with the Context constructor.
@@ -2764,11 +2764,11 @@ def disable_click_colors():
     https://github.com/pallets/click/blob/e1aa43a3/click/globals.py#L39
     """
 
-    ctx = Context(BaseCommand('AllYourBaseAreBelongToUs'))
+    ctx = Context(Command('AllYourBaseAreBelongToUs'))
     ctx.color = False
     push_context(ctx)
 
-def handle(): # pragma: no cover
+def handle() -> None: # pragma: no cover
     """
     Main program execution handler.
     """

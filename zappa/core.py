@@ -1248,7 +1248,7 @@ class Zappa:
             Payload=payload
         )
 
-    def rollback_lambda_function_version(self, function_name, versions_back=1, publish=True):
+    def rollback_lambda_function_version(self, function_name:str, versions_back:int=1, publish:bool=True):
         """
         Rollback the lambda function code 'versions_back' number of revisions.
 
@@ -1764,7 +1764,7 @@ class Zappa:
                             cloudwatch_metrics_enabled=False,
                             cache_cluster_ttl=300,
                             cache_cluster_encrypted=False
-                        ):
+                        ) -> str:
         """
         Deploy the API Gateway!
 
@@ -3017,7 +3017,7 @@ class Zappa:
     # CloudWatch Logging
     ##
 
-    def fetch_logs(self, lambda_name, filter_pattern='', limit=10000, start_time=0):
+    def fetch_logs(self, lambda_name, filter_pattern:str='', limit=10000, start_time=0):
         """
         Fetch the CloudWatch logs for a given Lambda name.
         """

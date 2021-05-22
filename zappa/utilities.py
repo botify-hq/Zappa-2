@@ -81,7 +81,7 @@ def parse_s3_url(url):
         path = result.path.strip('/')
     return bucket, path
 
-def human_size(num, suffix='B'):
+def human_size(num:int, suffix:str='B') -> str:
     """
     Convert bytes length to a human-readable version
     """

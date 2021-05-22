@@ -92,6 +92,7 @@ import os
 import time
 import uuid
 from functools import update_wrapper, wraps
+from typing import Optional, Dict
 
 import boto3
 import botocore
@@ -133,7 +134,7 @@ class LambdaAsyncResponse:
     Base Response Dispatcher class
     Can be used directly or subclassed if the method to send the message is changed.
     """
-    def __init__(self, lambda_function_name=None, aws_region=None, capture_response=False, **kwargs):
+    def __init__(self, lambda_function_name:str = None, aws_region:str = None, capture_response:bool = False, **kwargs):
         """ """
         if kwargs.get('boto_session'):
             self.client = kwargs.get('boto_session').client('lambda')
@@ -395,7 +396,7 @@ def task(*args, **kwargs):
 
     capture_response = kwargs.get('capture_response', False)
 
-    def func_wrapper(func):
+    def func_wrapper(func: callable):
 
         task_path = get_func_task_path(func)
 
@@ -440,7 +441,7 @@ def task(*args, **kwargs):
     return func_wrapper(func) if func else func_wrapper
 
 
-def task_sns(func):
+def task_sns(func: callable):
     """
     SNS-based task dispatcher. Functions the same way as task()
     """
@@ -451,7 +452,7 @@ def task_sns(func):
 # Utility Functions
 ##
 
-def import_and_get_task(task_path):
+def import_and_get_task(task_path: str) -> callable:
     """
     Given a modular path to a function, import that module
     and return the function.
@@ -462,7 +463,7 @@ def import_and_get_task(task_path):
     return app_function
 
 
-def get_func_task_path(func):
+def get_func_task_path(func: callable) -> str:
     """
     Format the modular task path for a function via inspection.
     """
@@ -474,7 +475,7 @@ def get_func_task_path(func):
     return task_path
 
 
-def get_async_response(response_id):
+def get_async_response(response_id: str) -> Optional[Dict[str, str]]:
     """
     Get the response from the async table
     """
