@@ -1145,7 +1145,7 @@ class ZappaCLI:
 
         click.echo(click.style("Done", fg="green", bold=True) + "!")
 
-    def update_cognito_triggers(self):
+    def update_cognito_triggers(self) -> None:
         """
         Update any cognito triggers
         """
@@ -1325,7 +1325,7 @@ class ZappaCLI:
 
         return formated_response
 
-    def colorize_invoke_command(self, string:str):
+    def colorize_invoke_command(self, string:str) -> str:
         """
         Apply various heuristics to return a colorized version the invoke
         command string. If these fail, simply return the string in plaintext.
@@ -2141,7 +2141,7 @@ class ZappaCLI:
 
         return self.zappa
 
-    def get_json_or_yaml_settings(self, settings_name="zappa_settings"):
+    def get_json_or_yaml_settings(self, settings_name:str="zappa_settings") -> str:
         """
         Return zappa_settings path as JSON or YAML (or TOML), as appropriate.
         """

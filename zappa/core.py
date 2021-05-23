@@ -24,6 +24,7 @@ import zipfile
 from builtins import bytes, int
 from distutils.dir_util import copy_tree
 from io import open
+from typing import List, Dist, Any, Optional
 
 import boto3
 import botocore
@@ -222,21 +223,21 @@ class Zappa:
     # Configurables
     ##
 
-    http_methods = ['ANY']
-    role_name = "ZappaLambdaExecution"
+    http_methods:List[str] = ['ANY']
+    role_name:str = "ZappaLambdaExecution"
     extra_permissions = None
-    assume_policy = ASSUME_POLICY
-    attach_policy = ATTACH_POLICY
-    apigateway_policy = None
-    cloudwatch_log_levels = ['OFF', 'ERROR', 'INFO']
-    xray_tracing = False
+    assume_policy:str = ASSUME_POLICY
+    attach_policy:str = ATTACH_POLICY
+    apigateway_policy:str = None
+    cloudwatch_log_levels:List[str] = ['OFF', 'ERROR', 'INFO']
+    xray_tracing:bool = False
 
     ##
     # Credentials
     ##
 
-    boto_session = None
-    credentials_arn = None
+    boto_session:Optional[botocore.session.Session] = None
+    credentials_arn:Optional[str] = None
 
     def __init__(self,
             boto_session=None,
@@ -249,7 +250,7 @@ class Zappa:
             tags=(),
             endpoint_urls={},
             xray_tracing=False
-        ):
+        ) -> None:
         """
         Instantiate this new Zappa instance, loading any custom credentials if necessary.
         """
@@ -328,21 +329,21 @@ class Zappa:
         self.cf_api_resources = []
         self.cf_parameters = {}
 
-    def configure_boto_session_method_kwargs(self, service, kw):
+    def configure_boto_session_method_kwargs(self, service:str, kw:Dict[str,str]) -> Dict[str,str]:
         """Allow for custom endpoint urls for non-AWS (testing and bootleg cloud) deployments"""
         if service in self.endpoint_urls and not 'endpoint_url' in kw:
             kw['endpoint_url'] = self.endpoint_urls[service]
         return kw
 
-    def boto_client(self, service, *args, **kwargs):
+    def boto_client(self, service:str, *args, **kwargs) -> botocore.client.BaseClient:
         """A wrapper to apply configuration options to boto clients"""
         return self.boto_session.client(service, *args, **self.configure_boto_session_method_kwargs(service, kwargs))
 
-    def boto_resource(self, service, *args, **kwargs):
+    def boto_resource(self, service:str, *args, **kwargs) -> botocore.resources.base.ServiceResource:
         """A wrapper to apply configuration options to boto resources"""
         return self.boto_session.resource(service, *args, **self.configure_boto_session_method_kwargs(service, kwargs))
 
-    def cache_param(self, value):
+    def cache_param(self, value: str) -> troposphere.Ref:
         '''Returns a troposphere Ref to a value cached as a parameter.'''
 
         if value not in self.cf_parameters:
@@ -359,7 +360,7 @@ class Zappa:
     # Packaging
     ##
 
-    def copy_editable_packages(self, egg_links, temp_package_path):
+    def copy_editable_packages(self, egg_links, temp_package_path:str):
         """ """
         for egg_link in egg_links:
             with open(egg_link, 'rb') as df:
