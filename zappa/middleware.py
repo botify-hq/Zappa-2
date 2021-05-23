@@ -28,7 +28,9 @@ class ZappaWSGIMiddleware:
     Most hacks have now been remove except for Set-Cookie permutation.
     """
 
-    def __init__(self, application):
+    from django.core.handlers.wsgi import WSGIHandler
+
+    def __init__(self, application: WSGIHandler) -> None:
         self.application = application
 
     def __call__(self, environ, start_response):

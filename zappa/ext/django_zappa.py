@@ -1,11 +1,13 @@
 import os
 import sys
+from typing import Callable
+from django.core.handlers.wsgi import WSGIHandler
 
 # add the Lambda root path into the sys.path
 sys.path.append("/var/task")
 
 
-def get_django_wsgi(settings_module):
+def get_django_wsgi(settings_module: Callable) -> WSGIHandler:
     from django.core.wsgi import get_wsgi_application
 
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", settings_module)

@@ -259,34 +259,35 @@ class Zappa:
     # Configurables
     ##
 
-    http_methods:List[str] = ['ANY']
-    role_name:str = "ZappaLambdaExecution"
+    http_methods: List[str] = ["ANY"]
+    role_name: str = "ZappaLambdaExecution"
     extra_permissions = None
-    assume_policy:str = ASSUME_POLICY
-    attach_policy:str = ATTACH_POLICY
-    apigateway_policy:str = None
-    cloudwatch_log_levels:List[str] = ['OFF', 'ERROR', 'INFO']
-    xray_tracing:bool = False
+    assume_policy: str = ASSUME_POLICY
+    attach_policy: str = ATTACH_POLICY
+    apigateway_policy: str = None
+    cloudwatch_log_levels: List[str] = ["OFF", "ERROR", "INFO"]
+    xray_tracing: bool = False
 
     ##
     # Credentials
     ##
 
-    boto_session:Optional[botocore.session.Session] = None
-    credentials_arn:Optional[str] = None
+    boto_session: Optional[botocore.session.Session] = None
+    credentials_arn: Optional[str] = None
 
-    def __init__(self,
-            boto_session=None,
-            profile_name=None,
-            aws_region=None,
-            load_credentials:bool=True,
-            desired_role_name:str=None,
-            desired_role_arn:str=None,
-            runtime:str='python3.6', # Detected at runtime in CLI
-            tags:tuple=(),
-            endpoint_urls:dict={},
-            xray_tracing:dict=False
-        ) -> Zappa:
+    def __init__(
+        self,
+        boto_session=None,
+        profile_name=None,
+        aws_region=None,
+        load_credentials: bool = True,
+        desired_role_name: str = None,
+        desired_role_arn: str = None,
+        runtime: str = "python3.6",  # Detected at runtime in CLI
+        tags: tuple = (),
+        endpoint_urls: dict = {},
+        xray_tracing: dict = False,
+    ) -> Zappa:
         """
         Instantiate this new Zappa instance, loading any custom credentials if necessary.
         """
@@ -369,26 +370,30 @@ class Zappa:
         self.cf_api_resources = []
         self.cf_parameters = {}
 
-    def configure_boto_session_method_kwargs(self, service:str, kw:Dict[str,str]) -> Dict[str,str]:
+    def configure_boto_session_method_kwargs(
+        self, service: str, kw: Dict[str, str]
+    ) -> Dict[str, str]:
         """Allow for custom endpoint urls for non-AWS (testing and bootleg cloud) deployments"""
         if service in self.endpoint_urls and not "endpoint_url" in kw:
             kw["endpoint_url"] = self.endpoint_urls[service]
         return kw
 
-    def boto_client(self, service:str, *args, **kwargs) -> botocore.client.BaseClient:
+    def boto_client(self, service: str, *args, **kwargs) -> botocore.client.BaseClient:
         """A wrapper to apply configuration options to boto clients"""
         return self.boto_session.client(
             service, *args, **self.configure_boto_session_method_kwargs(service, kwargs)
         )
 
-    def boto_resource(self, service:str, *args, **kwargs) -> botocore.resources.base.ServiceResource:
+    def boto_resource(
+        self, service: str, *args, **kwargs
+    ) -> botocore.resources.base.ServiceResource:
         """A wrapper to apply configuration options to boto resources"""
         return self.boto_session.resource(
             service, *args, **self.configure_boto_session_method_kwargs(service, kwargs)
         )
 
     def cache_param(self, value: str) -> troposphere.Ref:
-        '''Returns a troposphere Ref to a value cached as a parameter.'''
+        """Returns a troposphere Ref to a value cached as a parameter."""
 
         if value not in self.cf_parameters:
             keyname = chr(ord("A") + len(self.cf_parameters))
@@ -406,7 +411,9 @@ class Zappa:
     # Packaging
     ##
 
-    def copy_editable_packages(self, egg_links:List[str], temp_package_path:str) -> None:
+    def copy_editable_packages(
+        self, egg_links: List[str], temp_package_path: str
+    ) -> None:
         """ """
         for egg_link in egg_links:
             with open(egg_link, "rb") as df:
@@ -430,7 +437,11 @@ class Zappa:
             for link in glob.glob(os.path.join(temp_package_path, "*.egg-link")):
                 os.remove(link)
 
-    def get_deps_list(self, pkg_name:str, installed_distros:Optional[pkg_resources.WorkingSet]=None):
+    def get_deps_list(
+        self,
+        pkg_name: str,
+        installed_distros: Optional[pkg_resources.WorkingSet] = None,
+    ):
         """
         For a given package, returns a list of required packages. Recursive.
         """
@@ -544,20 +555,21 @@ class Zappa:
             return None
         return venv
 
-    def create_lambda_zip(  self,
-                            prefix:str='lambda_package',
-                            handler_file:Optional[str]=None,
-                            slim_handler:bool=False,
-                            minify:bool=True,
-                            exclude:Optional[List[str]]=None,
-                            exclude_glob:Optional[List[str]]=None,
-                            use_precompiled_packages:bool=True,
-                            include=None,  # This is never used, remove later
-                            venv:str=None,
-                            output:str=None,
-                            disable_progress:bool=False,
-                            archive_format:str='zip'
-                        ) -> str:
+    def create_lambda_zip(
+        self,
+        prefix: str = "lambda_package",
+        handler_file: Optional[str] = None,
+        slim_handler: bool = False,
+        minify: bool = True,
+        exclude: Optional[List[str]] = None,
+        exclude_glob: Optional[List[str]] = None,
+        use_precompiled_packages: bool = True,
+        include=None,  # This is never used, remove later
+        venv: str = None,
+        output: str = None,
+        disable_progress: bool = False,
+        archive_format: str = "zip",
+    ) -> str:
         """
         Create a Lambda-ready zip file of the current virtualenvironment and working directory.
 
@@ -603,7 +615,7 @@ class Zappa:
         if not "concurrent" in exclude:
             exclude.append("concurrent")
 
-        def splitpath(path:str) -> List[str]:
+        def splitpath(path: str) -> List[str]:
             parts = []
             (path, tail) = os.path.split(path)
             while path and tail:
@@ -900,7 +912,9 @@ class Zappa:
         return archive_fname
 
     @staticmethod
-    def get_installed_packages(site_packages:str, site_packages_64:str) -> Dict[str, str]:
+    def get_installed_packages(
+        site_packages: str, site_packages_64: str
+    ) -> Dict[str, str]:
         """
         Returns a dict of installed packages that Zappa cares about.
         """
@@ -925,7 +939,9 @@ class Zappa:
         return installed_packages
 
     @staticmethod
-    def download_url_with_progress(url:str, stream:Any, disable_progress:bool) -> None:
+    def download_url_with_progress(
+        url: str, stream: Any, disable_progress: bool
+    ) -> None:
         """
         Downloads a given url in chunks and writes to the provided stream (can be any io stream).
         Displays the progress bar for the download.
@@ -948,7 +964,9 @@ class Zappa:
 
         progress.close()
 
-    def get_cached_manylinux_wheel(self, package_name:str, package_version:str, disable_progress=False) -> Optional[str]:
+    def get_cached_manylinux_wheel(
+        self, package_name: str, package_version: str, disable_progress=False
+    ) -> Optional[str]:
         """
         Gets the locally stored version of a manylinux wheel. If one does not exist, the function downloads it.
         """
@@ -988,7 +1006,7 @@ class Zappa:
 
         return wheel_path
 
-    def get_manylinux_wheel_url(self, package_name:str, package_version:str) -> str:
+    def get_manylinux_wheel_url(self, package_name: str, package_version: str) -> str:
         """
         For a given package name, returns a link to the download URL,
         else returns None.
@@ -1041,7 +1059,9 @@ class Zappa:
     # S3
     ##
 
-    def upload_to_s3(self, source_path:str, bucket_name:str, disable_progress:bool=False) -> bool:
+    def upload_to_s3(
+        self, source_path: str, bucket_name: str, disable_progress: bool = False
+    ) -> bool:
         r"""
         Given a file, upload it to S3.
         Credentials should be stored in environment variables or ~/.aws/credentials (%USERPROFILE%\.aws\credentials on Windows).
@@ -1108,7 +1128,9 @@ class Zappa:
             return False
         return True
 
-    def copy_on_s3(self, src_file_name:str, dst_file_name:str, bucket_name:str) -> bool:
+    def copy_on_s3(
+        self, src_file_name: str, dst_file_name: str, bucket_name: str
+    ) -> bool:
         """
         Copies src file to destination within a bucket.
         """
@@ -1130,7 +1152,7 @@ class Zappa:
         except botocore.exceptions.ClientError:  # pragma: no cover
             return False
 
-    def remove_from_s3(self, file_name:str, bucket_name:str) -> bool:
+    def remove_from_s3(self, file_name: str, bucket_name: str) -> bool:
         """
         Given a file name and a bucket, remove it from S3.
 
@@ -1161,29 +1183,30 @@ class Zappa:
     # Lambda
     ##
 
-    def create_lambda_function( self,
-                                function_name:str,
-                                handler:str,
-                                vpc_config:dict,
-                                dead_letter_config:Dict[str,str],
-                                aws_environment_variables:dict,
-                                aws_kms_key_arn:str,
-                                xray_tracing:bool,
-                                use_alb:bool,
-                                layers:List[str],
-                                concurrency:Optional[int],
-                                runtime:str='python3.6',
-                                timeout:int=30,
-                                memory_size:int=512,
-                                description:str='Zappa Deployment',
-                                bucket:Optional[str]=None,
-                                s3_key:Optional[str]=None,
-                                local_zip:Optional[BytesIO]=None,
-                            ):
+    def create_lambda_function(
+        self,
+        function_name: str,
+        handler: str,
+        vpc_config: dict,
+        dead_letter_config: Dict[str, str],
+        aws_environment_variables: dict,
+        aws_kms_key_arn: str,
+        xray_tracing: bool,
+        use_alb: bool,
+        layers: List[str],
+        concurrency: Optional[int],
+        runtime: str = "python3.6",
+        timeout: int = 30,
+        memory_size: int = 512,
+        description: str = "Zappa Deployment",
+        bucket: Optional[str] = None,
+        s3_key: Optional[str] = None,
+        local_zip: Optional[BytesIO] = None,
+    ):
         """
         Given a bucket and key (or a local path) of a valid Lambda-zip, a function name and a handler, register that Lambda function.
         """
-        publish =True
+        publish = True
 
         if not vpc_config:
             vpc_config = {}
@@ -1416,7 +1439,9 @@ class Zappa:
             Payload=payload,
         )
 
-    def rollback_lambda_function_version(self, function_name:str, versions_back:int=1, publish:bool=True):
+    def rollback_lambda_function_version(
+        self, function_name: str, versions_back: int = 1, publish: bool = True
+    ):
         """
         Rollback the lambda function code 'versions_back' number of revisions.
 
@@ -1977,20 +2002,21 @@ class Zappa:
         integration.Uri = uri
         method.Integration = integration
 
-    def deploy_api_gateway( self,
-                            api_id,
-                            stage_name,
-                            stage_description="",
-                            description="",
-                            cache_cluster_enabled=False,
-                            cache_cluster_size='0.5',
-                            variables=None,
-                            cloudwatch_log_level='OFF',
-                            cloudwatch_data_trace=False,
-                            cloudwatch_metrics_enabled=False,
-                            cache_cluster_ttl=300,
-                            cache_cluster_encrypted=False
-                        ) -> str:
+    def deploy_api_gateway(
+        self,
+        api_id,
+        stage_name,
+        stage_description="",
+        description="",
+        cache_cluster_enabled=False,
+        cache_cluster_size="0.5",
+        variables=None,
+        cloudwatch_log_level="OFF",
+        cloudwatch_data_trace=False,
+        cloudwatch_metrics_enabled=False,
+        cache_cluster_ttl=300,
+        cache_cluster_encrypted=False,
+    ) -> str:
         """
         Deploy the API Gateway!
 
@@ -3348,7 +3374,9 @@ class Zappa:
     # CloudWatch Logging
     ##
 
-    def fetch_logs(self, lambda_name, filter_pattern:str='', limit=10000, start_time=0):
+    def fetch_logs(
+        self, lambda_name, filter_pattern: str = "", limit=10000, start_time=0
+    ):
         """
         Fetch the CloudWatch logs for a given Lambda name.
         """

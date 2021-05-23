@@ -2,10 +2,12 @@ import base64
 import logging
 import sys
 from urllib.parse import urlencode
+from typeing import Optional, Dict, Any
 
 import six
 from requestlogger import ApacheFormatter
 from werkzeug import urls
+import werkzeug.wrappers.Response
 
 from .utilities import merge_headers, titlecase_keys
 
@@ -13,13 +15,13 @@ BINARY_METHODS = ["POST", "PUT", "PATCH", "DELETE", "CONNECT", "OPTIONS"]
 
 
 def create_wsgi_request(
-    event_info,
-    server_name="zappa",
-    script_name=None,
-    trailing_slash=True,
-    binary_support=False,
-    base_path=None,
-    context_header_mappings={},
+    event_info: Dict[str, Any],
+    server_name: str = "zappa",
+    script_name: Optional[str] = None,
+    trailing_slash: bool = True,
+    binary_support: bool = False,
+    base_path: Optional[str] = None,
+    context_header_mappings: Dict[str, Any] = {},
 ):
     """
     Given some event_info via API Gateway,
@@ -156,7 +158,11 @@ def create_wsgi_request(
     return environ
 
 
-def common_log(environ, response, response_time=None):
+def common_log(
+    environ: Dict[str, Any],
+    response: werkzeug.wrappers.Response,
+    response_time: Optional[int] = None,
+) -> str:
     """
     Given the WSGI environ and the response,
     log this event in Common Log Format.
@@ -192,7 +198,7 @@ def common_log(environ, response, response_time=None):
 
 
 # Related: https://github.com/Miserlou/Zappa/issues/1199
-def get_wsgi_string(string, encoding="utf-8"):
+def get_wsgi_string(string: str, encoding: str = "utf-8") -> str:
     """
     Returns wsgi-compatible string
     """

@@ -10,8 +10,10 @@ import shutil
 import stat
 import sys
 from urllib.parse import urlparse
+from typing import Tuple, Dict, Any, Optional
 
 import botocore
+import boto3
 import durationpy
 from past.builtins import basestring
 
@@ -69,7 +71,7 @@ def copytree(src, dst, metadata=True, symlinks=False, ignore=None):
         copy_file(src, dst, item)
 
 
-def parse_s3_url(url):
+def parse_s3_url(url: str) -> Tuple[str, str]:
     """
     Parses S3 URL.
 
@@ -83,7 +85,8 @@ def parse_s3_url(url):
         path = result.path.strip("/")
     return bucket, path
 
-def human_size(num:int, suffix:str='B') -> str:
+
+def human_size(num: int, suffix: str = "B") -> str:
     """
     Convert bytes length to a human-readable version
     """
@@ -219,7 +222,11 @@ def get_topic_name(lambda_name):
 
 
 def get_event_source(
-    event_source, lambda_arn, target_function, boto_session, dry=False
+    event_source: str,
+    lambda_arn: str,
+    target_function: str,
+    boto_session: boto3.session.Session,
+    dry: bool = False,
 ):
     """
 
@@ -241,11 +248,18 @@ def get_event_source(
     import kappa.role
 
     class PseudoContext:
-        def __init__(self):
+        environment: Optional[str] = None
+        session: Optional[boto3.session.Session] = None
+
+        def __init__(self) -> None:
             return
 
     class PseudoFunction:
-        def __init__(self):
+        name: Optional[str] = None
+        arn: Optional[str] = None
+        _context: Optional[PseudoContext] = None
+
+        def __init__(self) -> None:
             return
 
     # Mostly adapted from kappa - will probably be replaced by kappa support
@@ -385,7 +399,7 @@ def get_event_source(
     if not event_source_func:
         raise ValueError("Unknown event source: {0}".format(arn))
 
-    def autoreturn(self, function_name):
+    def autoreturn(self, function_name: str) -> str:
         return function_name
 
     event_source_func._make_notification_id = autoreturn
@@ -422,8 +436,12 @@ def get_event_source(
 
 
 def add_event_source(
-    event_source, lambda_arn, target_function, boto_session, dry=False
-):
+    event_source: str,
+    lambda_arn: str,
+    target_function: str,
+    boto_session: boto3.session.Session,
+    dry: bool = False,
+) -> str:
     """
     Given an event_source dictionary, create the object and add the event source.
     """
@@ -443,8 +461,12 @@ def add_event_source(
 
 
 def remove_event_source(
-    event_source, lambda_arn, target_function, boto_session, dry=False
-):
+    event_source: str,
+    lambda_arn: str,
+    target_function: str,
+    boto_session: boto3.session.Session,
+    dry: bool = False,
+) -> Any:
     """
     Given an event_source dictionary, create the object and remove the event source.
     """
@@ -463,8 +485,12 @@ def remove_event_source(
 
 
 def get_event_source_status(
-    event_source, lambda_arn, target_function, boto_session, dry=False
-):
+    event_source: str,
+    lambda_arn: str,
+    target_function: str,
+    boto_session: boto3.session.Session,
+    dry: bool = False,
+) -> Any:
     """
     Given an event_source dictionary, create the object and get the event source status.
     """
@@ -480,7 +506,7 @@ def get_event_source_status(
 ##
 
 
-def check_new_version_available(this_version):
+def check_new_version_available(this_version: str) -> bool:
     """
     Checks if a newer version of Zappa is available.
 
@@ -493,7 +519,8 @@ def check_new_version_available(this_version):
     resp = requests.get(pypi_url, timeout=1.5)
     top_version = resp.json()["info"]["version"]
 
-    return this_version != top_version
+    version_mismatch: bool = this_version != top_version
+    return version_mismatch
 
 
 class InvalidAwsLambdaName(Exception):
@@ -502,7 +529,7 @@ class InvalidAwsLambdaName(Exception):
     pass
 
 
-def validate_name(name, maxlen=80):
+def validate_name(name: basestring, maxlen: int = 80) -> basestring:
     """Validate name for AWS Lambda function.
     name: actual name (without `arn:aws:lambda:...:` prefix and without
         `:$LATEST`, alias or version suffix.
@@ -532,7 +559,7 @@ def validate_name(name, maxlen=80):
     return name
 
 
-def contains_python_files_or_subdirs(folder):
+def contains_python_files_or_subdirs(folder: str) -> bool:
     """
     Checks (recursively) if the directory contains .py or .pyc files
     """
@@ -556,7 +583,7 @@ def contains_python_files_or_subdirs(folder):
     return False
 
 
-def conflicts_with_a_neighbouring_module(directory_path):
+def conflicts_with_a_neighbouring_module(directory_path: str) -> bool:
     """
     Checks if a directory lies in the same directory as a .py file with the same name.
     """
@@ -567,7 +594,7 @@ def conflicts_with_a_neighbouring_module(directory_path):
 
 
 # https://github.com/Miserlou/Zappa/issues/1188
-def titlecase_keys(d):
+def titlecase_keys(d: Dict[str, Any]) -> Dict[str, Any]:
     """
     Takes a dict with keys of type str and returns a new dict with all keys titlecased.
     """
@@ -575,7 +602,7 @@ def titlecase_keys(d):
 
 
 # https://github.com/Miserlou/Zappa/issues/1688
-def is_valid_bucket_name(name):
+def is_valid_bucket_name(name: str) -> bool:
     """
     Checks if an S3 bucket name is valid according to https://docs.aws.amazon.com/AmazonS3/latest/dev/BucketRestrictions.html#bucketnamingrules
     """
@@ -611,7 +638,7 @@ def is_valid_bucket_name(name):
     return True
 
 
-def merge_headers(event):
+def merge_headers(event: Dict[str, Any]) -> Dict[str, Any]:
     """
     Merge the values of headers and multiValueHeaders into a single dict.
     Opens up support for multivalue headers via API Gateway and ALB.

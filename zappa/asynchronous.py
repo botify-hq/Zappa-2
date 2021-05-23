@@ -136,7 +136,14 @@ class LambdaAsyncResponse:
     Base Response Dispatcher class
     Can be used directly or subclassed if the method to send the message is changed.
     """
-    def __init__(self, lambda_function_name:str = None, aws_region:str = None, capture_response:bool = False, **kwargs):
+
+    def __init__(
+        self,
+        lambda_function_name: str = None,
+        aws_region: str = None,
+        capture_response: bool = False,
+        **kwargs
+    ):
         """ """
         if kwargs.get("boto_session"):
             self.client = kwargs.get("boto_session").client("lambda")
@@ -465,6 +472,7 @@ def task_sns(func: callable):
 ##
 # Utility Functions
 ##
+
 
 def import_and_get_task(task_path: str) -> callable:
     """

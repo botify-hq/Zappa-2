@@ -10,6 +10,7 @@ import sys
 import tarfile
 import traceback
 from builtins import str
+from typing import Dict, Any, Optional, Type, Callable
 
 import boto3
 from werkzeug.wrappers import Response
@@ -39,24 +40,32 @@ class LambdaHandler:
     Pattern provided by @benbangert.
     """
 
-    __instance = None
+    __instance: Optional[LambdaHandler] = None
     settings = None
-    settings_name = None
-    session = None
+    settings_name: Optional[str] = None
+    session: Optional[boto3.session.Session] = None
 
     # Application
     app_module = None
     wsgi_app = None
     trailing_slash = False
 
-    def __new__(cls, settings_name="zappa_settings", session=None):
+    def __new__(
+        cls,
+        settings_name: str = "zappa_settings",
+        session: Optional[boto3.session.Session] = None,
+    ) -> LambdaHandler:
         """Singleton instance to avoid repeat setup"""
         if LambdaHandler.__instance is None:
             print("Instancing..")
             LambdaHandler.__instance = object.__new__(cls)
         return LambdaHandler.__instance
 
-    def __init__(self, settings_name="zappa_settings", session=None):
+    def __init__(
+        self,
+        settings_name: str = "zappa_settings",
+        session: Optional[boto3.session.Session] = None,
+    ) -> None:
 
         # We haven't cached our settings yet, load the settings and app.
         if not self.settings:
@@ -66,8 +75,8 @@ class LambdaHandler:
             self.session = session
 
             # Custom log level
-            if self.settings.LOG_LEVEL:
-                level = logging.getLevelName(self.settings.LOG_LEVEL)
+            if self.settings.LOG_LEVEL:  # type: ignore
+                level = logging.getLevelName(self.settings.LOG_LEVEL)  # type: ignore
                 logger.setLevel(level)
 
             remote_env = getattr(self.settings, "REMOTE_ENV", None)
@@ -80,16 +89,16 @@ class LambdaHandler:
             os.environ["SERVERTYPE"] = "AWS Lambda"
             os.environ["FRAMEWORK"] = "Zappa"
             try:
-                os.environ["PROJECT"] = self.settings.PROJECT_NAME
-                os.environ["STAGE"] = self.settings.API_STAGE
+                os.environ["PROJECT"] = self.settings.PROJECT_NAME  # type: ignore
+                os.environ["STAGE"] = self.settings.API_STAGE  # type: ignore
             except Exception:  # pragma: no cover
                 pass
 
             # Set any locally defined env vars
             # Environment variable keys can't be Unicode
             # https://github.com/Miserlou/Zappa/issues/604
-            for key in self.settings.ENVIRONMENT_VARIABLES.keys():
-                os.environ[str(key)] = self.settings.ENVIRONMENT_VARIABLES[key]
+            for key in self.settings.ENVIRONMENT_VARIABLES.keys():  # type: ignore
+                os.environ[str(key)] = self.settings.ENVIRONMENT_VARIABLES[key]  # type: ignore
 
             # Pulling from S3 if given a zip path
             project_archive_path = getattr(self.settings, "ARCHIVE_PATH", None)
@@ -123,14 +132,14 @@ class LambdaHandler:
             # https://github.com/Miserlou/Zappa/pull/748
             if (
                 not hasattr(self.settings, "APP_MODULE")
-                and not self.settings.DJANGO_SETTINGS
+                and not self.settings.DJANGO_SETTINGS  # type: ignore
             ):
                 self.app_module = None
                 wsgi_app_function = None
             # This is probably a normal WSGI app (Or django with overloaded wsgi application)
             # https://github.com/Miserlou/Zappa/issues/1164
             elif hasattr(self.settings, "APP_MODULE"):
-                if self.settings.DJANGO_SETTINGS:
+                if self.settings.DJANGO_SETTINGS:  # type: ignore
                     sys.path.append("/var/task")
                     from django.conf import (
                         ENVIRONMENT_VARIABLE as SETTINGS_ENVIRONMENT_VARIABLE,
@@ -140,15 +149,15 @@ class LambdaHandler:
                     self.trailing_slash = True
                     os.environ[
                         SETTINGS_ENVIRONMENT_VARIABLE
-                    ] = self.settings.DJANGO_SETTINGS
+                    ] = self.settings.DJANGO_SETTINGS  # type: ignore
                 else:
                     self.trailing_slash = False
 
                 # The app module
-                self.app_module = importlib.import_module(self.settings.APP_MODULE)
+                self.app_module = importlib.import_module(self.settings.APP_MODULE)  # type: ignore
 
                 # The application
-                wsgi_app_function = getattr(self.app_module, self.settings.APP_FUNCTION)
+                wsgi_app_function = getattr(self.app_module, self.settings.APP_FUNCTION)  # type: ignore
             # Django gets special treatment.
             else:
                 try:  # Support both for tests
@@ -157,20 +166,20 @@ class LambdaHandler:
                     from django_zappa_app import get_django_wsgi
 
                 # Get the Django WSGI app from our extension
-                wsgi_app_function = get_django_wsgi(self.settings.DJANGO_SETTINGS)
+                wsgi_app_function = get_django_wsgi(self.settings.DJANGO_SETTINGS)  # type: ignore
                 self.trailing_slash = True
 
             self.wsgi_app = ZappaWSGIMiddleware(wsgi_app_function)
 
-    def load_remote_project_archive(self, project_zip_path):
+    def load_remote_project_archive(self, project_zip_path: str) -> bool:
         """
         Puts the project files from S3 in /tmp and adds to path
         """
-        project_folder = "/tmp/{0!s}".format(self.settings.PROJECT_NAME)
+        project_folder = "/tmp/{0!s}".format(self.settings.PROJECT_NAME)  # type: ignore
         if not os.path.isdir(project_folder):
             # The project folder doesn't exist in this cold lambda, get it from S3
             if not self.session:
-                boto_session = boto3.Session()
+                boto_session = boto3.session.Session()
             else:
                 boto_session = self.session
 
@@ -190,7 +199,7 @@ class LambdaHandler:
         os.chdir(project_folder)
         return True
 
-    def load_remote_settings(self, remote_bucket, remote_file):
+    def load_remote_settings(self, remote_bucket: str, remote_file: str) -> None:
         """
         Attempt to read a file from s3 containing a flat json object. Adds each
         key->value pair as environment variables. Helpful for keeping
@@ -198,7 +207,7 @@ class LambdaHandler:
         version control.
         """
         if not self.session:
-            boto_session = boto3.Session()
+            boto_session = boto3.session.Session()
         else:
             boto_session = self.session
 
@@ -225,18 +234,18 @@ class LambdaHandler:
 
         # add each key-value to environment - overwrites existing keys!
         for key, value in settings_dict.items():
-            if self.settings.LOG_LEVEL == "DEBUG":
+            if self.settings.LOG_LEVEL == "DEBUG":  # type: ignore
                 print("Adding {} -> {} to environment".format(key, value))
             # Environment variable keys can't be Unicode
             # https://github.com/Miserlou/Zappa/issues/604
             try:
                 os.environ[str(key)] = value
             except Exception:
-                if self.settings.LOG_LEVEL == "DEBUG":
+                if self.settings.LOG_LEVEL == "DEBUG":  # type: ignore
                     print("Environment variable keys must be non-unicode!")
 
     @staticmethod
-    def import_module_and_get_function(whole_function):
+    def import_module_and_get_function(whole_function: str) -> Any:
         """
         Given a modular path to a function, import that module
         and return the function.
@@ -247,9 +256,11 @@ class LambdaHandler:
         return app_function
 
     @classmethod
-    def lambda_handler(cls, event, context):  # pragma: no cover
+    def lambda_handler(
+        cls, event: Dict[str, Any], context: Any
+    ) -> Any:  # pragma: no cover
         handler = cls()
-        exception_handler = handler.settings.EXCEPTION_HANDLER
+        exception_handler = handler.settings.EXCEPTION_HANDLER  # type: ignore
         try:
             return handler.handler(event, context)
         except Exception as ex:
@@ -265,7 +276,13 @@ class LambdaHandler:
                 raise
 
     @classmethod
-    def _process_exception(cls, exception_handler, event, context, exception):
+    def _process_exception(
+        cls,
+        exception_handler: Optional[str],
+        event: Dict[str, Any],
+        context: Any,
+        exception: Exception,
+    ) -> bool:
         exception_processed = False
         if exception_handler:
             try:
@@ -277,7 +294,7 @@ class LambdaHandler:
         return exception_processed
 
     @staticmethod
-    def run_function(app_function, event, context):
+    def run_function(app_function: Any, event: Dict[str, Any], context: Any) -> Any:
         """
         Given a function and event context,
         detect signature and execute, returning any result.
@@ -304,7 +321,7 @@ class LambdaHandler:
             )
         return result
 
-    def get_function_for_aws_event(self, record):
+    def get_function_for_aws_event(self, record: Dict[str, Any]) -> Any:
         """
         Get the associated function to execute for a triggered AWS event
 
@@ -331,11 +348,11 @@ class LambdaHandler:
             arn = record["s3"]["bucket"]["arn"]
 
         if arn:
-            return self.settings.AWS_EVENT_MAPPING.get(arn)
+            return self.settings.AWS_EVENT_MAPPING.get(arn)  # type: ignore
 
         return None
 
-    def get_function_from_bot_intent_trigger(self, event):
+    def get_function_from_bot_intent_trigger(self, event: Dict[str, Any]) -> Any:
         """
         For the given event build ARN and return the configured function
         """
@@ -343,23 +360,23 @@ class LambdaHandler:
         if intent:
             intent = intent.get("name")
             if intent:
-                return self.settings.AWS_BOT_EVENT_MAPPING.get(
+                return self.settings.AWS_BOT_EVENT_MAPPING.get(  # type: ignore
                     "{}:{}".format(intent, event.get("invocationSource"))
                 )
 
-    def get_function_for_cognito_trigger(self, trigger):
+    def get_function_for_cognito_trigger(self, trigger: str) -> Any:
         """
         Get the associated function to execute for a cognito trigger
         """
         print(
             "get_function_for_cognito_trigger",
-            self.settings.COGNITO_TRIGGER_MAPPING,
+            self.settings.COGNITO_TRIGGER_MAPPING,  # type: ignore
             trigger,
-            self.settings.COGNITO_TRIGGER_MAPPING.get(trigger),
+            self.settings.COGNITO_TRIGGER_MAPPING.get(trigger),  # type: ignore
         )
-        return self.settings.COGNITO_TRIGGER_MAPPING.get(trigger)
+        return self.settings.COGNITO_TRIGGER_MAPPING.get(trigger)  # type: ignore
 
-    def handler(self, event, context):
+    def handler(self, event: Dict[str, Any], context: Any) -> Any:
         """
         An AWS Lambda function which parses specific API Gateway input into a
         WSGI request, feeds it to our WSGI app, processes the response, and returns
@@ -369,7 +386,7 @@ class LambdaHandler:
         settings = self.settings
 
         # If in DEBUG mode, log all raw incoming events.
-        if settings.DEBUG:
+        if settings.DEBUG:  # type: ignore
             logger.debug("Zappa Event: {}".format(event))
 
         # Set any API Gateway defined Stage Variables
@@ -425,7 +442,7 @@ class LambdaHandler:
             # Get the Django WSGI app from our extension
             # We don't actually need the function,
             # but we do need to do all of the required setup for it.
-            app_function = get_django_wsgi(self.settings.DJANGO_SETTINGS)
+            app_function = get_django_wsgi(self.settings.DJANGO_SETTINGS)  # type: ignore
 
             # Couldn't figure out how to get the value into stdout with StringIO..
             # Read the log for now. :[]
@@ -435,7 +452,7 @@ class LambdaHandler:
         # This is an AWS-event triggered invocation.
         elif event.get("Records", None):
 
-            records = event.get("Records")
+            records = event["Records"]
             result = None
             whole_function = self.get_function_for_aws_event(records[0])
             if whole_function:
@@ -460,7 +477,7 @@ class LambdaHandler:
 
         # This is an API Gateway authorizer event
         elif event.get("type") == "TOKEN":
-            whole_function = self.settings.AUTHORIZER_FUNCTION
+            whole_function = self.settings.AUTHORIZER_FUNCTION  # type: ignore
             if whole_function:
                 app_function = self.import_module_and_get_function(whole_function)
                 policy = self.run_function(app_function, event, context)
@@ -473,7 +490,7 @@ class LambdaHandler:
 
         # This is an AWS Cognito Trigger Event
         elif event.get("triggerSource", None):
-            triggerSource = event.get("triggerSource")
+            triggerSource = event["triggerSource"]
             whole_function = self.get_function_for_cognito_trigger(triggerSource)
             result = event
             if whole_function:
@@ -492,7 +509,7 @@ class LambdaHandler:
         # Related: https://github.com/Miserlou/Zappa/issues/1924
         elif event.get("awslogs", None):
             result = None
-            whole_function = "{}.{}".format(settings.APP_MODULE, settings.APP_FUNCTION)
+            whole_function = "{}.{}".format(settings.APP_MODULE, settings.APP_FUNCTION)  # type: ignore
             app_function = self.import_module_and_get_function(whole_function)
             if app_function:
                 result = self.run_function(app_function, event, context)
@@ -537,10 +554,10 @@ class LambdaHandler:
                             # The path provided in th event doesn't include the
                             # stage, so we must tell Flask to include the API
                             # stage in the url it calculates. See https://github.com/Miserlou/Zappa/issues/1014
-                            script_name = "/" + settings.API_STAGE
+                            script_name = "/" + settings.API_STAGE  # type: ignore
                     else:
                         # This is a test request sent from the AWS console
-                        if settings.DOMAIN:
+                        if settings.DOMAIN:  # type: ignore
                             # Assume the requests received will be on the specified
                             # domain. No special handling is required
                             pass
@@ -548,7 +565,7 @@ class LambdaHandler:
                             # Assume the requests received will be to the
                             # amazonaws.com endpoint, so tell Flask to include the
                             # API stage
-                            script_name = "/" + settings.API_STAGE
+                            script_name = "/" + settings.API_STAGE  # type: ignore
 
                 base_path = getattr(settings, "BASE_PATH", None)
 
@@ -558,8 +575,8 @@ class LambdaHandler:
                     script_name=script_name,
                     base_path=base_path,
                     trailing_slash=self.trailing_slash,
-                    binary_support=settings.BINARY_SUPPORT,
-                    context_header_mappings=settings.CONTEXT_HEADER_MAPPINGS,
+                    binary_support=settings.BINARY_SUPPORT,  # type: ignore
+                    context_header_mappings=settings.CONTEXT_HEADER_MAPPINGS,  # type: ignore
                 )
 
                 # We are always on https on Lambda, so tell our wsgi app that.
@@ -572,7 +589,7 @@ class LambdaHandler:
                 with Response.from_app(self.wsgi_app, environ) as response:
                     # This is the object we're going to return.
                     # Pack the WSGI response into our special dictionary.
-                    zappa_returndict = dict()
+                    zappa_returndict: Dict[str, Any] = dict()
 
                     # Issue #1715: ALB support. ALB responses must always include
                     # base64 encoding and status description
@@ -584,7 +601,7 @@ class LambdaHandler:
 
                     if response.data:
                         if (
-                            settings.BINARY_SUPPORT
+                            settings.BINARY_SUPPORT  # type: ignore
                             and not response.mimetype.startswith("text/")
                             and response.mimetype != "application/json"
                         ):
@@ -626,14 +643,14 @@ class LambdaHandler:
             )
 
             # If we didn't even build an app_module, just raise.
-            if not settings.DJANGO_SETTINGS:
+            if not settings.DJANGO_SETTINGS:  # type: ignore
                 try:
                     self.app_module
                 except NameError as ne:
-                    message = "Failed to import module: {}".format(ne.message)
+                    message = "Failed to import module: {}".format(ne)
 
             # Call exception handler for unhandled exceptions
-            exception_handler = self.settings.EXCEPTION_HANDLER
+            exception_handler = self.settings.EXCEPTION_HANDLER  # type: ignore
             self._process_exception(
                 exception_handler=exception_handler,
                 event=event,
@@ -642,10 +659,10 @@ class LambdaHandler:
             )
 
             # Return this unspecified exception as a 500, using template that API Gateway expects.
-            content = collections.OrderedDict()
+            content: Dict[str, Any] = collections.OrderedDict()
             content["statusCode"] = 500
-            body = {"message": message}
-            if settings.DEBUG:  # only include traceback if debug is on.
+            body: Dict[str, Any] = {"message": message}
+            if settings.DEBUG:  # type: ignore
                 body["traceback"] = traceback.format_exception(
                     *exc_info
                 )  # traceback as a list for readability.
@@ -653,11 +670,11 @@ class LambdaHandler:
             return content
 
 
-def lambda_handler(event, context):  # pragma: no cover
+def lambda_handler(event: Dict[str, Any], context: Any) -> Any:  # pragma: no cover
     return LambdaHandler.lambda_handler(event, context)
 
 
-def keep_warm_callback(event, context):
+def keep_warm_callback(event: Dict[str, Any], context: Any) -> None:
     """Method is triggered by the CloudWatch event scheduled when keep_warm setting is set to true."""
     lambda_handler(
         event={}, context=context

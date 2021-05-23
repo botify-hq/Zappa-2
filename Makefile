@@ -36,7 +36,7 @@ build: clean requirements-install
 	python setup.py bdist_wheel 
 
 mypy:
-	mypy --show-error-codes --pretty --ignore-missing-imports --strict zappa tests
+	mypy zappa/utilities.py
 
 black:
 	black zappa tests
