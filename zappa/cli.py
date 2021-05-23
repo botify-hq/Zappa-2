@@ -24,7 +24,7 @@ import time
 import zipfile
 from builtins import bytes, input
 from datetime import datetime, timedelta
-from typing import Optional, List, Dict, Any, KeysView
+from typing import Optional, List, Dict, Any, KeysView, MutableMapping
 
 import argcomplete
 import botocore
@@ -84,7 +84,7 @@ class ZappaCLI:
 
     # Zappa settings
     zappa:Zappa = None
-    zappa_settings:Dict[str, Any] = {}
+    zappa_settings:MutableMapping[str, Any] = {}
     load_credentials:bool = True
     disable_progress:bool = False
 
@@ -93,11 +93,11 @@ class ZappaCLI:
     app_function:Optional[str] = None
     aws_region:Optional[str] = None
     debug = None
-    prebuild_script = None
+    prebuild_script:str = ''
     project_name:Optional[str] = None
     profile_name:Optional[str] = None
     lambda_arn:Optional[str] = None
-    lambda_name:Optional[str] = None
+    lambda_name:str = ''
     lambda_description:Optional[str] = None
     lambda_concurrency:Optional[int] = None
     s3_bucket_name:Optional[str] = None
@@ -111,11 +111,11 @@ class ZappaCLI:
     django_settings = None
     manage_roles:bool = True
     exception_handler = None
-    environment_variables = None
-    authorizer = None
+    environment_variables:Dict[str,str] = {}
+    authorizer:Dict[str,str] = {}
     xray_tracing:bool = False
     aws_kms_key_arn = ''
-    context_header_mappings = None
+    context_header_mappings:Dict[str,str] = {}
     tags:Dict[str,Any] = {}
     layers = None
 
@@ -551,7 +551,7 @@ class ZappaCLI:
             self.template(      self.vargs['lambda_arn'],
                                 self.vargs['role_arn'],
                                 output=self.vargs['output'],
-                                json=self.vargs['json']
+                                is_json=self.vargs['json']
                             )
         elif command == 'update': # pragma: no cover
             self.update(self.vargs['zip'], self.vargs['no_upload'])
@@ -765,6 +765,7 @@ class ZappaCLI:
                 use_alb=self.use_alb,
                 layers=self.layers,
                 concurrency=self.lambda_concurrency,
+                xray_tracing=self.xray_tracing
             )
             if source_zip and source_zip.startswith('s3://'):
                 bucket, key_name = parse_s3_url(source_zip)
@@ -1020,11 +1021,11 @@ class ZappaCLI:
             # but we're also updating a few of the APIGW settings.
             endpoint_url = self.deploy_api_gateway(api_id)
 
-            if self.stage_config.get('domain', None):
-                endpoint_url = self.stage_config.get('domain')
+            if self.stage_config.get('domain', ''):
+                endpoint_url = self.stage_config['domain']
 
         else:
-            endpoint_url = None
+            endpoint_url = ''
 
         self.schedule()
 
@@ -1275,16 +1276,16 @@ class ZappaCLI:
         #   manage, which is a Django-specific management command invocation
         key = command if command is not None else 'command'
         if raw_python:
-            command = {'raw_command': function_name}
+            command_dict = {'raw_command': function_name}
         else:
-            command = {key: function_name}
+            command_dict = {key: function_name}
 
         # Can't use hjson
         import json as json
 
         response = self.zappa.invoke_lambda_function(
             self.lambda_name,
-            json.dumps(command),
+            json.dumps(command_dict),
             invocation_type='RequestResponse',
         )
 
@@ -1393,7 +1394,7 @@ class ZappaCLI:
         except Exception:
             return string
 
-    def status(self, return_json:bool=False) -> None:
+    def status(self, return_json:bool=False) -> bool:
         """
         Describe the status of the current deployment.
         """
@@ -1411,8 +1412,8 @@ class ZappaCLI:
         if not lambda_versions:
             raise ClickException(click.style("No Lambda %s detected in %s - have you deployed yet?" %
                                              (self.lambda_name, self.zappa.aws_region), fg='red'))
-
-        status_dict = collections.OrderedDict()
+                                             
+        status_dict:collections.OrderedDict[str, Any] = collections.OrderedDict()
         status_dict["Lambda Versions"] = len(lambda_versions)
         function_response = self.zappa.lambda_client.get_function(FunctionName=self.lambda_name)
         conf = function_response['Configuration']
@@ -1497,14 +1498,14 @@ class ZappaCLI:
         status_dict["Num. Event Rules"] = len(event_rules)
         if len(event_rules) > 0:
             status_dict['Events'] = []
-        for rule in event_rules:
-            event_dict = {}
-            rule_name = rule['Name']
-            event_dict["Event Rule Name"] = rule_name
-            event_dict["Event Rule Schedule"] = rule.get('ScheduleExpression', None)
-            event_dict["Event Rule State"] = rule.get('State', None).title()
-            event_dict["Event Rule ARN"] = rule.get('Arn', None)
-            status_dict['Events'].append(event_dict)
+            for rule in event_rules:
+                event_dict = {}
+                rule_name = rule['Name']
+                event_dict["Event Rule Name"] = rule_name
+                event_dict["Event Rule Schedule"] = rule.get('ScheduleExpression', None)
+                event_dict["Event Rule State"] = rule.get('State', None).title()
+                event_dict["Event Rule ARN"] = rule.get('Arn', None)
+                status_dict['Events'].append(event_dict)
 
         if return_json:
             # Putting the status in machine readable format
@@ -1538,7 +1539,7 @@ class ZappaCLI:
             return True
         raise ValueError("AWS requires stage name to match a-zA-Z0-9_")
 
-    def check_environment(self, environment: str) -> bool:
+    def check_environment(self, environment: Dict[str, str]) -> bool:
         """
         Make sure the environment contains only strings
 
@@ -1682,10 +1683,10 @@ class ZappaCLI:
         if has_django: # pragma: no cover
             click.echo("It looks like this is a " + click.style("Django", bold=True)  + " application!")
             click.echo("What is the " + click.style("module path", bold=True)  + " to your projects's Django settings?")
-            django_settings = None
+            django_settings = ''
 
             matches = detect_django_settings()
-            while django_settings in [None, '']:
+            while django_settings == '':
                 if matches:
                     click.echo("We discovered: " + click.style(', '.join('{}'.format(i) for v, i in enumerate(matches)), bold=True))
                     django_settings = input("Where are your project's settings? (default '%s'): " % matches[0]) or matches[0]
@@ -1701,8 +1702,8 @@ class ZappaCLI:
                 matches = detect_flask_apps()
             click.echo("What's the " + click.style("modular path", bold=True)  + " to your app's function?")
             click.echo("This will likely be something like 'your_module.app'.")
-            app_function = None
-            while app_function in [None, '']:
+            app_function = ''
+            while app_function == '':
                 if matches:
                     click.echo("We discovered: " + click.style(', '.join('{}'.format(i) for v, i in enumerate(matches)), bold=True))
                     app_function = input("Where is your app's function? (default '%s'): " % matches[0]) or matches[0]
@@ -2051,7 +2052,7 @@ class ZappaCLI:
         self.exception_handler = self.stage_config.get('exception_handler', None)
         self.aws_region = self.stage_config.get('aws_region', None)
         self.debug = self.stage_config.get('debug', True)
-        self.prebuild_script = self.stage_config.get('prebuild_script', None)
+        self.prebuild_script = self.stage_config.get('prebuild_script', '')
         self.profile_name = self.stage_config.get('profile_name', None)
         self.log_level = self.stage_config.get('log_level', "DEBUG")
         self.domain = self.stage_config.get('domain', None)
@@ -2101,7 +2102,7 @@ class ZappaCLI:
         self.context_header_mappings = self.stage_config.get('context_header_mappings', {})
         self.xray_tracing = self.stage_config.get('xray_tracing', False)
         self.desired_role_arn = self.stage_config.get('role_arn')
-        self.layers = self.stage_config.get('layers', None)
+        self.layers = self.stage_config.get('layers', [])
 
         # Load ALB-related settings
         self.use_alb = self.stage_config.get('alb_enabled', False)
@@ -2414,7 +2415,7 @@ class ZappaCLI:
             settings_s = settings_s + "COGNITO_TRIGGER_MAPPING={0!s}\n".format(cognito_trigger_mapping)
 
             # Authorizer config
-            authorizer_function = self.authorizer.get('function', None)
+            authorizer_function = self.authorizer.get('function', '')
             if authorizer_function:
                 settings_s += "AUTHORIZER_FUNCTION='{0!s}'\n".format(authorizer_function)
 
@@ -2475,7 +2476,7 @@ class ZappaCLI:
 
             self.remove_local_zip()
 
-    def print_logs(self, logs: List[dict], colorize:bool=True, http:bool=False, non_http:bool=False, force_colorize:Optional[bool]=None) -> None:
+    def print_logs(self, logs: List[Dict[str,Any]], colorize:bool=True, http:bool=False, non_http:bool=False, force_colorize:Optional[bool]=None) -> None:
         """
         Parse, filter and print logs to the console.
 

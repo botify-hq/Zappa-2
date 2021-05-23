@@ -24,7 +24,7 @@ import zipfile
 from builtins import bytes, int
 from distutils.dir_util import copy_tree
 from io import open
-from typing import List, Dist, Any, Optional
+from typing import List, Dict, Any, Optional
 
 import boto3
 import botocore
@@ -243,14 +243,14 @@ class Zappa:
             boto_session=None,
             profile_name=None,
             aws_region=None,
-            load_credentials=True,
-            desired_role_name=None,
-            desired_role_arn=None,
-            runtime='python3.6', # Detected at runtime in CLI
-            tags=(),
-            endpoint_urls={},
-            xray_tracing=False
-        ) -> None:
+            load_credentials:bool=True,
+            desired_role_name:str=None,
+            desired_role_arn:str=None,
+            runtime:str='python3.6', # Detected at runtime in CLI
+            tags:tuple=(),
+            endpoint_urls:dict={},
+            xray_tracing:dict=False
+        ) -> Zappa:
         """
         Instantiate this new Zappa instance, loading any custom credentials if necessary.
         """
@@ -360,7 +360,7 @@ class Zappa:
     # Packaging
     ##
 
-    def copy_editable_packages(self, egg_links, temp_package_path:str):
+    def copy_editable_packages(self, egg_links:List[str], temp_package_path:str) -> None:
         """ """
         for egg_link in egg_links:
             with open(egg_link, 'rb') as df:
@@ -374,7 +374,7 @@ class Zappa:
             for link in glob.glob(os.path.join(temp_package_path, "*.egg-link")):
                 os.remove(link)
 
-    def get_deps_list(self, pkg_name, installed_distros=None):
+    def get_deps_list(self, pkg_name:str, installed_distros:Optional[pkg_resources.WorkingSet]=None):
         """
         For a given package, returns a list of required packages. Recursive.
         """
@@ -392,7 +392,7 @@ class Zappa:
                     deps += self.get_deps_list(pkg_name=req.project_name, installed_distros=installed_distros)
         return list(set(deps))  # de-dupe before returning
 
-    def create_handler_venv(self):
+    def create_handler_venv(self) -> str:
         """
         Takes the installed zappa and brings it into a fresh virtualenv-like folder. All dependencies are then downloaded.
         """
@@ -442,7 +442,7 @@ class Zappa:
 
     # staticmethod as per https://github.com/Miserlou/Zappa/issues/780
     @staticmethod
-    def get_current_venv():
+    def get_current_venv() -> str:
         """
         Returns the path to the current virtualenv
         """
@@ -465,19 +465,19 @@ class Zappa:
         return venv
 
     def create_lambda_zip(  self,
-                            prefix='lambda_package',
-                            handler_file=None,
-                            slim_handler=False,
-                            minify=True,
-                            exclude=None,
-                            exclude_glob=None,
-                            use_precompiled_packages=True,
-                            include=None,
-                            venv=None,
-                            output=None,
-                            disable_progress=False,
-                            archive_format='zip'
-                        ):
+                            prefix:str='lambda_package',
+                            handler_file:Optional[str]=None,
+                            slim_handler:bool=False,
+                            minify:bool=True,
+                            exclude:Optional[List[str]]=None,
+                            exclude_glob:Optional[List[str]]=None,
+                            use_precompiled_packages:bool=True,
+                            include=None,  # This is never used, remove later
+                            venv:str=None,
+                            output:str=None,
+                            disable_progress:bool=False,
+                            archive_format:str='zip'
+                        ) -> str:
         """
         Create a Lambda-ready zip file of the current virtualenvironment and working directory.
 
@@ -521,7 +521,7 @@ class Zappa:
         if not 'concurrent' in exclude:
             exclude.append('concurrent')
 
-        def splitpath(path):
+        def splitpath(path:str) -> List[str]:
             parts = []
             (path, tail) = os.path.split(path)
             while path and tail:
@@ -764,7 +764,7 @@ class Zappa:
         return archive_fname
 
     @staticmethod
-    def get_installed_packages(site_packages, site_packages_64):
+    def get_installed_packages(site_packages:str, site_packages_64:str) -> Dict[str, str]:
         """
         Returns a dict of installed packages that Zappa cares about.
         """
@@ -786,7 +786,7 @@ class Zappa:
         return installed_packages
 
     @staticmethod
-    def download_url_with_progress(url, stream, disable_progress):
+    def download_url_with_progress(url:str, stream:Any, disable_progress:bool) -> None:
         """
         Downloads a given url in chunks and writes to the provided stream (can be any io stream).
         Displays the progress bar for the download.
@@ -802,7 +802,7 @@ class Zappa:
 
         progress.close()
 
-    def get_cached_manylinux_wheel(self, package_name, package_version, disable_progress=False):
+    def get_cached_manylinux_wheel(self, package_name:str, package_version:str, disable_progress=False) -> Optional[str]:
         """
         Gets the locally stored version of a manylinux wheel. If one does not exist, the function downloads it.
         """
@@ -836,7 +836,7 @@ class Zappa:
 
         return wheel_path
 
-    def get_manylinux_wheel_url(self, package_name, package_version):
+    def get_manylinux_wheel_url(self, package_name:str, package_version:str) -> str:
         """
         For a given package name, returns a link to the download URL,
         else returns None.
@@ -887,7 +887,7 @@ class Zappa:
     # S3
     ##
 
-    def upload_to_s3(self, source_path, bucket_name, disable_progress=False):
+    def upload_to_s3(self, source_path:str, bucket_name:str, disable_progress:bool=False) -> bool:
         r"""
         Given a file, upload it to S3.
         Credentials should be stored in environment variables or ~/.aws/credentials (%USERPROFILE%\.aws\credentials on Windows).
@@ -947,7 +947,7 @@ class Zappa:
             return False
         return True
 
-    def copy_on_s3(self, src_file_name, dst_file_name, bucket_name):
+    def copy_on_s3(self, src_file_name:str, dst_file_name:str, bucket_name:str) -> bool:
         """
         Copies src file to destination within a bucket.
         """
@@ -974,7 +974,7 @@ class Zappa:
         except botocore.exceptions.ClientError:  # pragma: no cover
             return False
 
-    def remove_from_s3(self, file_name, bucket_name):
+    def remove_from_s3(self, file_name:str, bucket_name:str) -> bool:
         """
         Given a file name and a bucket, remove it from S3.
 
@@ -1003,28 +1003,29 @@ class Zappa:
     ##
 
     def create_lambda_function( self,
-                                bucket=None,
-                                function_name=None,
-                                handler=None,
-                                s3_key=None,
-                                description='Zappa Deployment',
-                                timeout=30,
-                                memory_size=512,
-                                publish=True,
-                                vpc_config=None,
-                                dead_letter_config=None,
-                                runtime='python3.6',
-                                aws_environment_variables=None,
-                                aws_kms_key_arn=None,
-                                xray_tracing=False,
-                                local_zip=None,
-                                use_alb=False,
-                                layers=None,
-                                concurrency=None,
+                                function_name:str,
+                                handler:str,
+                                vpc_config:dict,
+                                dead_letter_config:Dict[str,str],
+                                aws_environment_variables:dict,
+                                aws_kms_key_arn:str,
+                                xray_tracing:bool,
+                                use_alb:bool,
+                                layers:List[str],
+                                concurrency:Optional[int],
+                                runtime:str='python3.6',
+                                timeout:int=30,
+                                memory_size:int=512,
+                                description:str='Zappa Deployment',
+                                bucket:Optional[str]=None,
+                                s3_key:Optional[str]=None,
+                                local_zip:Optional[BytesIO]=None,
                             ):
         """
         Given a bucket and key (or a local path) of a valid Lambda-zip, a function name and a handler, register that Lambda function.
         """
+        publish =True
+
         if not vpc_config:
             vpc_config = {}
         if not dead_letter_config:
