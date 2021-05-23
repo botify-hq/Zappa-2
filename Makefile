@@ -41,6 +41,10 @@ mypy:
 black:
 	black zappa tests
 
+black-check:
+	black zappa tests --check
+	@echo "If this fails, simply run: make black"
+
 isort:
 	isort --recursive . 
 
