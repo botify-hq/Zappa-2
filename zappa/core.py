@@ -282,7 +282,7 @@ class Zappa:
         aws_region=None,
         load_credentials: bool = True,
         desired_role_name: str = None,
-        desired_role_arn: str = None,
+        desired_role_arn: Any = None,
         runtime: str = "python3.6",  # Detected at runtime in CLI
         tags: tuple = (),
         endpoint_urls: dict = {},
@@ -566,10 +566,10 @@ class Zappa:
         use_precompiled_packages: bool = True,
         include=None,  # This is never used, remove later
         venv: str = None,
-        output: str = None,
+        output: Optional[str] = None,
         disable_progress: bool = False,
         archive_format: str = "zip",
-    ) -> str:
+    ) -> Any:
         """
         Create a Lambda-ready zip file of the current virtualenvironment and working directory.
 
@@ -1152,7 +1152,9 @@ class Zappa:
         except botocore.exceptions.ClientError:  # pragma: no cover
             return False
 
-    def remove_from_s3(self, file_name: str, bucket_name: str) -> bool:
+    def remove_from_s3(
+        self, file_name: Optional[str], bucket_name: Optional[str]
+    ) -> bool:
         """
         Given a file name and a bucket, remove it from S3.
 
@@ -1493,7 +1495,7 @@ class Zappa:
         response = self.lambda_client.get_function(FunctionName=function_name)
         return response["Configuration"]["FunctionArn"]
 
-    def get_lambda_function_versions(self, function_name):
+    def get_lambda_function_versions(self, function_name: str) -> List[str]:
         """
         Simply returns the versions available for a Lambda function, given a function name.
 
@@ -2581,15 +2583,15 @@ class Zappa:
 
     def create_domain_name(
         self,
-        domain_name,
-        certificate_name,
-        certificate_body=None,
-        certificate_private_key=None,
-        certificate_chain=None,
-        certificate_arn=None,
-        lambda_name=None,
-        stage=None,
-        base_path=None,
+        domain_name: str,
+        certificate_name: str,
+        certificate_body: Optional[str] = None,
+        certificate_private_key: Optional[str] = None,
+        certificate_chain: Optional[str] = None,
+        certificate_arn: Optional[str] = None,
+        lambda_name: Optional[str] = None,
+        stage: Optional[str] = None,
+        base_path: Optional[str] = None,
     ):
         """
         Creates the API GW domain and returns the resulting DNS name.
@@ -2625,7 +2627,7 @@ class Zappa:
 
         return agw_response["distributionDomainName"]
 
-    def update_route53_records(self, domain_name, dns_name):
+    def update_route53_records(self, domain_name: str, dns_name: str) -> Any:
         """
         Updates Route53 Records following GW domain creation
         """
@@ -2672,16 +2674,16 @@ class Zappa:
 
     def update_domain_name(
         self,
-        domain_name,
-        certificate_name=None,
-        certificate_body=None,
-        certificate_private_key=None,
-        certificate_chain=None,
-        certificate_arn=None,
-        lambda_name=None,
-        stage=None,
-        route53=True,
-        base_path=None,
+        domain_name: str,
+        certificate_name: Optional[str] = None,
+        certificate_body: Optional[str] = None,
+        certificate_private_key: Optional[str] = None,
+        certificate_chain: Optional[str] = None,
+        certificate_arn: Optional[str] = None,
+        lambda_name: Optional[str] = None,
+        stage: Optional[str] = None,
+        route53: bool = True,
+        base_path: Optional[str] = None,
     ):
         """
         This updates your certificate information for an existing domain,
@@ -2788,7 +2790,7 @@ class Zappa:
         zones["HostedZones"] += new_zones["HostedZones"]
         return zones
 
-    def get_domain_name(self, domain_name, route53=True):
+    def get_domain_name(self, domain_name: str, route53: bool = True) -> Optional[bool]:
         """
         Scan our hosted zones for the record of a given name.
 
@@ -3538,7 +3540,7 @@ class Zappa:
     # Utility
     ##
 
-    def shell(self):
+    def shell(self) -> None:
         """
         Spawn a PDB shell.
         """

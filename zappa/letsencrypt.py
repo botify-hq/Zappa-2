@@ -25,7 +25,9 @@ import sys
 import tempfile
 import textwrap
 import time
+from typing import Optional
 from urllib.request import urlopen
+from zappa.core import Zappa
 
 import requests
 
@@ -41,11 +43,11 @@ LOGGER.addHandler(logging.StreamHandler())
 
 
 def get_cert_and_update_domain(
-    zappa_instance,
-    lambda_name,
-    api_stage,
-    domain=None,
-    manual=False,
+    zappa_instance: Zappa,
+    lambda_name: str,
+    api_stage: str,
+    domain: Optional[str] = None,
+    manual: bool = False,
 ):
     """
     Main cert installer path.
@@ -453,7 +455,7 @@ def _send_signed_request(url, payload):
 __tempdir = None
 
 
-def gettempdir():
+def gettempdir() -> str:
     """
     Lazily creates a temporary directory in a secure manner. When Python exits,
     or the cleanup() function is called, the directory is erased.

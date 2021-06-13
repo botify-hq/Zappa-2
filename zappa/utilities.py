@@ -10,7 +10,8 @@ import shutil
 import stat
 import sys
 from urllib.parse import urlparse
-from typing import Tuple, Dict, Any, Optional
+from kappa.function import Function
+from typing import Tuple, Dict, Any, Optional, Callable, List
 
 import botocore
 import boto3
@@ -24,7 +25,13 @@ LOG = logging.getLogger(__name__)
 ##
 
 
-def copytree(src, dst, metadata=True, symlinks=False, ignore=None):
+def copytree(
+    src: str,
+    dst: str,
+    metadata: bool = True,
+    symlinks: bool = False,
+    ignore: Optional[Any] = None,
+) -> None:
     """
     This is a contributed re-implementation of 'copytree' that
     should work with the exact same behavior on multiple platforms.
@@ -33,7 +40,7 @@ def copytree(src, dst, metadata=True, symlinks=False, ignore=None):
     times are not copied.
     """
 
-    def copy_file(src, dst, item):
+    def copy_file(src: str, dst: str, item: str) -> None:
         s = os.path.join(src, item)
         d = os.path.join(dst, item)
 
@@ -86,7 +93,7 @@ def parse_s3_url(url: str) -> Tuple[str, str]:
     return bucket, path
 
 
-def human_size(num: int, suffix: str = "B") -> str:
+def human_size(num: float, suffix: str = "B") -> str:
     """
     Convert bytes length to a human-readable version
     """
@@ -97,7 +104,7 @@ def human_size(num: int, suffix: str = "B") -> str:
     return "{0:.1f}{1!s}{2!s}".format(num, "Yi", suffix)
 
 
-def string_to_timestamp(timestring):
+def string_to_timestamp(timestring: str) -> int:
     """
     Accepts a str, returns an int timestamp.
     """
@@ -125,7 +132,7 @@ def string_to_timestamp(timestring):
 ##
 
 
-def detect_django_settings():
+def detect_django_settings() -> List[str]:
     """
     Automatically try to discover Django settings files,
     return them as relative module paths.
@@ -147,7 +154,7 @@ def detect_django_settings():
     return matches
 
 
-def detect_flask_apps():
+def detect_flask_apps() -> List[str]:
     """
     Automatically try to discover Flask apps files,
     return them as relative module paths.
@@ -189,11 +196,11 @@ def detect_flask_apps():
     return matches
 
 
-def get_venv_from_python_version():
+def get_venv_from_python_version() -> str:
     return "python{}.{}".format(*sys.version_info)
 
 
-def get_runtime_from_python_version():
+def get_runtime_from_python_version() -> str:
     """ """
     if sys.version_info[0] < 3:
         raise ValueError("Python 2.x is no longer supported.")
@@ -211,7 +218,7 @@ def get_runtime_from_python_version():
 ##
 
 
-def get_topic_name(lambda_name):
+def get_topic_name(lambda_name: str) -> str:
     """Topic name generation"""
     return "%s-zappa-async" % lambda_name
 
@@ -221,13 +228,30 @@ def get_topic_name(lambda_name):
 ##
 
 
+class PseudoContext:
+    environment: Optional[str] = None
+    session: Optional[boto3.session.Session] = None
+
+    def __init__(self) -> None:
+        return
+
+
+class PseudoFunction:
+    name: Optional[str] = None
+    arn: Optional[str] = None
+    _context: Optional[PseudoContext] = None
+
+    def __init__(self) -> None:
+        return
+
+
 def get_event_source(
-    event_source: str,
+    event_source: Dict[str, Any],
     lambda_arn: str,
     target_function: str,
     boto_session: boto3.session.Session,
     dry: bool = False,
-):
+) -> Tuple[Any, PseudoContext, PseudoFunction]:
     """
 
     Given an event_source dictionary item, a session and a lambda_arn,
@@ -247,28 +271,13 @@ def get_event_source(
     import kappa.restapi
     import kappa.role
 
-    class PseudoContext:
-        environment: Optional[str] = None
-        session: Optional[boto3.session.Session] = None
-
-        def __init__(self) -> None:
-            return
-
-    class PseudoFunction:
-        name: Optional[str] = None
-        arn: Optional[str] = None
-        _context: Optional[PseudoContext] = None
-
-        def __init__(self) -> None:
-            return
-
     # Mostly adapted from kappa - will probably be replaced by kappa support
-    class SqsEventSource(kappa.event_source.base.EventSource):
-        def __init__(self, context, config):
+    class SqsEventSource(kappa.event_source.base.EventSource):  # type: ignore
+        def __init__(self, context: Any, config: Dict[str, Any]) -> None:
             super().__init__(context, config)
             self._lambda = kappa.awsclient.create_client("lambda", context.session)
 
-        def _get_uuid(self, function):
+        def _get_uuid(self, function: Function) -> Any:
             uuid = None
             response = self._lambda.call(
                 "list_event_source_mappings",
@@ -280,7 +289,7 @@ def get_event_source(
                 uuid = response["EventSourceMappings"][0]["UUID"]
             return uuid
 
-        def add(self, function):
+        def add(self, function: Function) -> None:
             try:
                 response = self._lambda.call(
                     "create_event_source_mapping",
@@ -293,7 +302,7 @@ def get_event_source(
             except Exception:
                 LOG.exception("Unable to add event source")
 
-        def enable(self, function):
+        def enable(self, function: Function) -> None:
             self._config["enabled"] = True
             try:
                 response = self._lambda.call(
@@ -305,7 +314,7 @@ def get_event_source(
             except Exception:
                 LOG.exception("Unable to enable event source")
 
-        def disable(self, function):
+        def disable(self, function: Function) -> None:
             self._config["enabled"] = False
             try:
                 response = self._lambda.call(
@@ -317,7 +326,7 @@ def get_event_source(
             except Exception:
                 LOG.exception("Unable to disable event source")
 
-        def update(self, function):
+        def update(self, function: Function) -> None:
             response = None
             uuid = self._get_uuid(function)
             if uuid:
@@ -332,7 +341,7 @@ def get_event_source(
                 except Exception:
                     LOG.exception("Unable to update event source")
 
-        def remove(self, function):
+        def remove(self, function: Function) -> Any:
             response = None
             uuid = self._get_uuid(function)
             if uuid:
@@ -340,7 +349,7 @@ def get_event_source(
                 LOG.debug(response)
             return response
 
-        def status(self, function):
+        def status(self, function: Function) -> Any:
             response = None
             LOG.debug("getting status for event source %s", self.arn)
             uuid = self._get_uuid(function)
@@ -357,12 +366,12 @@ def get_event_source(
                 LOG.debug("No UUID for event source %s", self.arn)
             return response
 
-    class ExtendedSnsEventSource(kappa.event_source.sns.SNSEventSource):
+    class ExtendedSnsEventSource(kappa.event_source.sns.SNSEventSource):  # type: ignore
         @property
-        def filters(self):
+        def filters(self) -> Any:
             return self._config.get("filters")
 
-        def add_filters(self, function):
+        def add_filters(self, function: Function) -> None:
             try:
                 subscription = self.exists(function)
                 if subscription:
@@ -378,7 +387,7 @@ def get_event_source(
                     "Unable to add filters for SNS topic %s", self.arn
                 )
 
-        def add(self, function):
+        def add(self, function: Function) -> None:
             super().add(function)
             if self.filters:
                 self.add_filters(function)
@@ -399,7 +408,7 @@ def get_event_source(
     if not event_source_func:
         raise ValueError("Unknown event source: {0}".format(arn))
 
-    def autoreturn(self, function_name: str) -> str:
+    def autoreturn(self: SqsEventSource, function_name: str) -> str:
         return function_name
 
     event_source_func._make_notification_id = autoreturn
@@ -436,7 +445,7 @@ def get_event_source(
 
 
 def add_event_source(
-    event_source: str,
+    event_source: Dict[str, Any],
     lambda_arn: str,
     target_function: str,
     boto_session: boto3.session.Session,
@@ -461,7 +470,7 @@ def add_event_source(
 
 
 def remove_event_source(
-    event_source: str,
+    event_source: Dict[str, Any],
     lambda_arn: str,
     target_function: str,
     boto_session: boto3.session.Session,
@@ -485,7 +494,7 @@ def remove_event_source(
 
 
 def get_event_source_status(
-    event_source: str,
+    event_source: Dict[str, Any],
     lambda_arn: str,
     target_function: str,
     boto_session: boto3.session.Session,
