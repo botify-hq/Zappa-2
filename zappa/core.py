@@ -24,7 +24,7 @@ import zipfile
 from builtins import bytes, int
 from distutils.dir_util import copy_tree
 from io import open
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Set, Tuple
 
 import boto3
 import botocore
@@ -284,10 +284,10 @@ class Zappa:
         desired_role_name: str = None,
         desired_role_arn: Any = None,
         runtime: str = "python3.6",  # Detected at runtime in CLI
-        tags: tuple = (),
+        tags: Dict[str, Any] = {},
         endpoint_urls: dict = {},
         xray_tracing: dict = False,
-    ) -> Zappa:
+    ):
         """
         Instantiate this new Zappa instance, loading any custom credentials if necessary.
         """
@@ -1060,7 +1060,7 @@ class Zappa:
     ##
 
     def upload_to_s3(
-        self, source_path: str, bucket_name: str, disable_progress: bool = False
+        self, source_path: Optional[str], bucket_name: Optional[str], disable_progress: bool = False
     ) -> bool:
         r"""
         Given a file, upload it to S3.
@@ -1129,7 +1129,7 @@ class Zappa:
         return True
 
     def copy_on_s3(
-        self, src_file_name: str, dst_file_name: str, bucket_name: str
+        self, src_file_name: str, dst_file_name: Optional[str], bucket_name: Optional[str]
     ) -> bool:
         """
         Copies src file to destination within a bucket.
@@ -1185,6 +1185,7 @@ class Zappa:
     # Lambda
     ##
 
+    @overload
     def create_lambda_function(
         self,
         function_name: str,
@@ -1273,13 +1274,13 @@ class Zappa:
 
     def update_lambda_function(
         self,
-        bucket,
-        function_name,
-        s3_key=None,
-        publish=True,
-        local_zip=None,
-        num_revisions=None,
-        concurrency=None,
+        bucket: Optional[str],
+        function_name: str,
+        s3_key:Optional[str]=None,
+        publish:bool=True,
+        local_zip:Optional[bytes]=None,
+        num_revisions:Optional[int]=None,
+        concurrency:Optional[int]=None,
     ):
         """
         Given a bucket and key (or a local path) of a valid Lambda-zip, a function name and a handler, update that Lambda function's code.
@@ -1356,16 +1357,16 @@ class Zappa:
 
     def update_lambda_configuration(
         self,
-        lambda_arn,
-        function_name,
+        lambda_arn: Optional[str],
+        function_name: str,
         handler,
-        description="Zappa Deployment",
-        timeout=30,
-        memory_size=512,
-        publish=True,
-        vpc_config=None,
-        runtime="python3.6",
-        aws_environment_variables=None,
+        description:Optional[str]="Zappa Deployment",
+        timeout:int=30,
+        memory_size:Optional[int]=512,
+        publish:bool=True,
+        vpc_config:Optional[Dict[str, Any]]=None,
+        runtime:str="python3.6",
+        aws_environment_variables:Optional[Dict[str, Any]]=None,
         aws_kms_key_arn=None,
         layers=None,
     ):
@@ -1423,12 +1424,12 @@ class Zappa:
 
     def invoke_lambda_function(
         self,
-        function_name,
+        function_name: str,
         payload,
-        invocation_type="Event",
-        log_type="Tail",
-        client_context=None,
-        qualifier=None,
+        invocation_type:str="Event",
+        log_type:str="Tail",
+        client_context:Optional[Dict[str, Any]]=None,
+        qualifier:None=None,
     ):
         """
         Directly invoke a named Lambda function with a payload.
@@ -1486,7 +1487,7 @@ class Zappa:
 
         return response["FunctionArn"]
 
-    def get_lambda_function(self, function_name):
+    def get_lambda_function(self, function_name: str) -> str:
         """
         Returns the lambda function ARN, given a name
 
@@ -1508,7 +1509,7 @@ class Zappa:
         except Exception:
             return []
 
-    def delete_lambda_function(self, function_name):
+    def delete_lambda_function(self, function_name: str) -> Any:
         """
         Given a function name, delete it from AWS Lambda.
 
@@ -1525,7 +1526,7 @@ class Zappa:
     # Application load balancer
     ##
 
-    def deploy_lambda_alb(self, lambda_arn, lambda_name, alb_vpc_config, timeout):
+    def deploy_lambda_alb(self, lambda_arn: Optional[str], lambda_name: str, alb_vpc_config: Dict[str,Any], timeout: float) -> None:
         """
         The `zappa deploy` functionality for ALB infrastructure.
         """
@@ -1657,7 +1658,7 @@ class Zappa:
         print("ALB created with DNS: {}".format(load_balancer_dns))
         print("Note it may take several minutes for load balancer to become available.")
 
-    def undeploy_lambda_alb(self, lambda_name):
+    def undeploy_lambda_alb(self, lambda_name: str) -> None:
         """
         The `zappa undeploy` functionality for ALB infrastructure.
         """
@@ -1761,14 +1762,14 @@ class Zappa:
 
     def create_api_gateway_routes(
         self,
-        lambda_arn,
-        api_name=None,
-        api_key_required=False,
-        authorization_type="NONE",
-        authorizer=None,
-        cors_options=None,
-        description=None,
-        endpoint_configuration=None,
+        lambda_arn:str,
+        api_name:Optional[str]=None,
+        api_key_required:bool=False,
+        authorization_type:str="NONE",
+        authorizer:Optional[str]=None,
+        cors_options:Optional[Dict[str,Any]]=None,
+        description:Optional[str]=None,
+        endpoint_configuration:List[str]=None,
     ):
         """
         Create the API Gateway for this Zappa deployment.
@@ -1940,7 +1941,7 @@ class Zappa:
             integration.Uri = uri
             method.Integration = integration
 
-    def create_and_setup_cors(self, restapi, resource, uri, depth, config):
+    def create_and_setup_cors(self, restapi: str, resource: str, uri: str, depth: float, config: Dict[str, Any]):
         """
         Set up the methods, integration responses and method responses for a given API Gateway resource.
         """
@@ -2055,7 +2056,7 @@ class Zappa:
             api_id, self.boto_session.region_name, stage_name
         )
 
-    def add_binary_support(self, api_id, cors=False):
+    def add_binary_support(self, api_id: str, cors:bool=False) -> None:
         """
         Add binary support
         """
@@ -2093,7 +2094,7 @@ class Zappa:
                     ],
                 )
 
-    def remove_binary_support(self, api_id, cors=False):
+    def remove_binary_support(self, api_id: str, cors:bool=False) -> None:
         """
         Remove binary support
         """
@@ -2122,7 +2123,7 @@ class Zappa:
                     ],
                 )
 
-    def add_api_compression(self, api_id, min_compression_size):
+    def add_api_compression(self, api_id: str, min_compression_size: float) -> None:
         """
         Add Rest API compression
         """
@@ -2137,7 +2138,7 @@ class Zappa:
             ],
         )
 
-    def remove_api_compression(self, api_id):
+    def remove_api_compression(self, api_id: str) -> None:
         """
         Remove Rest API compression
         """
@@ -2161,7 +2162,7 @@ class Zappa:
             if stage_key in api_key.get("stageKeys"):
                 yield api_key.get("id")
 
-    def create_api_key(self, api_id, stage_name):
+    def create_api_key(self, api_id: str, stage_name: str) -> None:
         """
         Create new API key and link it with an api_id and a stage_name
         """
@@ -2178,7 +2179,7 @@ class Zappa:
         )
         print("Created a new x-api-key: {}".format(response["id"]))
 
-    def remove_api_key(self, api_id, stage_name):
+    def remove_api_key(self, api_id: str, stage_name: str) -> None:
         """
         Remove a generated API key for api_id and stage_name
         """
@@ -2188,7 +2189,7 @@ class Zappa:
         for api_key in response.get("items"):
             self.apigateway_client.delete_api_key(apiKey="{}".format(api_key["id"]))
 
-    def add_api_stage_to_api_key(self, api_key, api_id, stage_name):
+    def add_api_stage_to_api_key(self, api_key: str, api_id: str, stage_name: str) -> None:
         """
         Add api stage to Api key
         """
@@ -2223,7 +2224,7 @@ class Zappa:
                 continue
             yield api
 
-    def undeploy_api_gateway(self, lambda_name, domain_name=None, base_path=None):
+    def undeploy_api_gateway(self, lambda_name:str, domain_name:Optional[str]=None, base_path:Optional[str]=None) -> None:
         """
         Delete a deployed REST API Gateway.
         """
@@ -2277,7 +2278,7 @@ class Zappa:
                 ],
             )
 
-    def update_cognito(self, lambda_name, user_pool, lambda_configs, lambda_arn):
+    def update_cognito(self, lambda_name:str, user_pool:str, lambda_configs:Set[Any], lambda_arn:Optional[str]):
         LambdaConfig = {}
         for config in lambda_configs:
             LambdaConfig[config] = lambda_arn
@@ -2365,13 +2366,13 @@ class Zappa:
 
     def create_stack_template(
         self,
-        lambda_arn,
-        lambda_name,
-        api_key_required,
-        iam_authorization,
-        authorizer,
-        cors_options=None,
-        description=None,
+        lambda_arn: Optional[str],
+        lambda_name: str,
+        api_key_required: str,
+        iam_authorization: str,
+        authorizer: Dict[str, Any],
+        cors_options:Optional[Dict[str, Any]]=None,
+        description:Optional[str]=None,
         endpoint_configuration=None,
     ):
         """
@@ -2412,12 +2413,12 @@ class Zappa:
 
     def update_stack(
         self,
-        name,
-        working_bucket,
-        wait=False,
-        update_only=False,
-        disable_progress=False,
-    ):
+        name: str,
+        working_bucket: Optional[str],
+        wait:bool=False,
+        update_only:bool=False,
+        disable_progress:bool=False,
+    ) -> None:
         """
         Update or create the CF stack managed by Zappa.
         """
@@ -2545,7 +2546,7 @@ class Zappa:
         except botocore.client.ClientError:
             return {}
 
-    def get_api_url(self, lambda_name, stage_name):
+    def get_api_url(self, lambda_name: str, stage_name: str) -> str:
         """
         Given a lambda_name and stage_name, return a valid API URL.
         """
@@ -2555,9 +2556,9 @@ class Zappa:
                 api_id, self.boto_session.region_name, stage_name
             )
         else:
-            return None
+            return ""
 
-    def get_api_id(self, lambda_name):
+    def get_api_id(self, lambda_name: str) -> str:
         """
         Given a lambda_name, return the API id.
         """
@@ -2851,7 +2852,7 @@ class Zappa:
         self.credentials_arn = role.arn
         return role, self.credentials_arn
 
-    def create_iam_roles(self):
+    def create_iam_roles(self) -> None:
         """
         Create and defines the IAM roles and policies necessary for Zappa.
 
@@ -2968,7 +2969,7 @@ class Zappa:
 
         return permission_response
 
-    def schedule_events(self, lambda_arn, lambda_name, events, default=True):
+    def schedule_events(self, lambda_arn:str, lambda_name:str, events:List[str], default:bool=True):
         """
         Given a Lambda ARN, name and a list of events, schedule this as CloudWatch Events.
 
@@ -3236,7 +3237,7 @@ class Zappa:
             rule_names.extend(response["RuleNames"])
         return rule_names
 
-    def get_event_rules_for_lambda(self, lambda_arn):
+    def get_event_rules_for_lambda(self, lambda_arn: Optional[str]) -> List[Any]:
         """
         Get all of the rule details associated with this function.
         """
@@ -3244,7 +3245,7 @@ class Zappa:
         return [self.events_client.describe_rule(Name=r) for r in rule_names]
 
     def unschedule_events(
-        self, events, lambda_arn=None, lambda_name=None, excluded_source_services=None
+        self, events: List[str], lambda_arn:Optional[str]=None, lambda_name:Optional[str]=None, excluded_source_services:List[str]=None
     ):
         excluded_source_services = excluded_source_services or []
         """
@@ -3289,7 +3290,7 @@ class Zappa:
     # Async / SNS
     ##
 
-    def create_async_sns_topic(self, lambda_name, lambda_arn):
+    def create_async_sns_topic(self, lambda_name:str, lambda_arn:str):
         """
         Create the SNS-based async topic.
         """
@@ -3313,7 +3314,7 @@ class Zappa:
         )
         return topic_arn
 
-    def remove_async_sns_topic(self, lambda_name):
+    def remove_async_sns_topic(self, lambda_name: str) -> List[str]:
         """
         Remove the async SNS topic.
         """
@@ -3335,7 +3336,7 @@ class Zappa:
             TimeToLiveSpecification={"Enabled": True, "AttributeName": "ttl"},
         )
 
-    def create_async_dynamodb_table(self, table_name, read_capacity, write_capacity):
+    def create_async_dynamodb_table(self, table_name:str, read_capacity:int, write_capacity:int) -> Tuple[bool, Dict[str, Any]]:
         """
         Create the DynamoDB table for async task return values
         """
@@ -3366,7 +3367,7 @@ class Zappa:
 
         return True, dynamodb_table
 
-    def remove_async_dynamodb_table(self, table_name):
+    def remove_async_dynamodb_table(self, table_name: str) -> None:
         """
         Remove the DynamoDB Table used for async return values
         """
@@ -3377,8 +3378,8 @@ class Zappa:
     ##
 
     def fetch_logs(
-        self, lambda_name, filter_pattern: str = "", limit=10000, start_time=0
-    ):
+        self, lambda_name: str, filter_pattern: str = "", limit: int=10000, start_time: int=0
+    ) -> List[Dict[str, Any]]:
         """
         Fetch the CloudWatch logs for a given Lambda name.
         """
@@ -3417,7 +3418,7 @@ class Zappa:
 
         return sorted(events, key=lambda k: k["timestamp"])
 
-    def remove_log_group(self, group_name):
+    def remove_log_group(self, group_name: str) -> None:
         """
         Filter all log groups that match the name given in log_filter.
         """
@@ -3427,13 +3428,13 @@ class Zappa:
         except botocore.exceptions.ClientError as e:
             print("Couldn't remove '{}' because of: {}".format(group_name, e))
 
-    def remove_lambda_function_logs(self, lambda_function_name):
+    def remove_lambda_function_logs(self, lambda_function_name: str) -> None:
         """
         Remove all logs that are assigned to a given lambda function id.
         """
         self.remove_log_group("/aws/lambda/{}".format(lambda_function_name))
 
-    def remove_api_gateway_logs(self, project_name):
+    def remove_api_gateway_logs(self, project_name: str) -> None:
         """
         Removed all logs that are assigned to a given rest api id.
         """
@@ -3451,7 +3452,7 @@ class Zappa:
     # Route53 Domain Name Entries
     ##
 
-    def get_hosted_zone_id_for_domain(self, domain):
+    def get_hosted_zone_id_for_domain(self, domain: str) -> Any:
         """
         Get the Hosted Zone ID for a given domain.
 
@@ -3460,7 +3461,7 @@ class Zappa:
         return self.get_best_match_zone(all_zones, domain)
 
     @staticmethod
-    def get_best_match_zone(all_zones, domain):
+    def get_best_match_zone(all_zones: Dict[str, Any], domain: str) -> List[str]:
         """Return zone id which name is closer matched with domain name."""
 
         # Related: https://github.com/Miserlou/Zappa/issues/459
@@ -3483,7 +3484,7 @@ class Zappa:
         else:
             return None
 
-    def set_dns_challenge_txt(self, zone_id, domain, txt_challenge):
+    def set_dns_challenge_txt(self, zone_id: str, domain: str, txt_challenge: str) -> Any:
         """
         Set DNS challenge TXT.
         """
@@ -3497,7 +3498,7 @@ class Zappa:
 
         return resp
 
-    def remove_dns_challenge_txt(self, zone_id, domain, txt_challenge):
+    def remove_dns_challenge_txt(self, zone_id: str, domain: str, txt_challenge: str) -> Any:
         """
         Remove DNS challenge TXT.
         """

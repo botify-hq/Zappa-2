@@ -25,7 +25,7 @@ import sys
 import tempfile
 import textwrap
 import time
-from typing import Optional
+from typing import Optional, Dict, Any, Set
 from urllib.request import urlopen
 from zappa.core import Zappa
 
@@ -48,7 +48,7 @@ def get_cert_and_update_domain(
     api_stage: str,
     domain: Optional[str] = None,
     manual: bool = False,
-):
+) -> bool:
     """
     Main cert installer path.
     """
@@ -112,15 +112,15 @@ def get_cert_and_update_domain(
     return True
 
 
-def create_domain_key():
+def create_domain_key() -> None:
     devnull = open(os.devnull, "wb")
     out = subprocess.check_output(["openssl", "genrsa", "2048"], stderr=devnull)
     with open(os.path.join(gettempdir(), "domain.key"), "wb") as f:
         f.write(out)
 
 
-def create_domain_csr(domain):
-    subj = "/CN=" + domain
+def create_domain_csr(domain: Optional[str]) -> None:
+    subj = "/CN=" + domain  # type: ignore
     cmd = [
         "openssl",
         "req",
@@ -138,7 +138,7 @@ def create_domain_csr(domain):
         f.write(out)
 
 
-def create_chained_certificate():
+def create_chained_certificate() -> None:
     signed_crt = open(os.path.join(gettempdir(), "signed.crt"), "rb").read()
 
     cross_cert_url = "https://letsencrypt.org/certs/lets-encrypt-x3-cross-signed.pem"
@@ -151,7 +151,7 @@ def create_chained_certificate():
         chained_pem.write(cert.content)
 
 
-def parse_account_key():
+def parse_account_key() -> Any:
     """Parse account key to get public key"""
     LOGGER.info("Parsing account key...")
     cmd = [
@@ -166,7 +166,7 @@ def parse_account_key():
     return subprocess.check_output(cmd, stderr=devnull)
 
 
-def parse_csr():
+def parse_csr() -> Set[str]:
     """
     Parse certificate signing request for domains
     """
@@ -198,7 +198,7 @@ def parse_csr():
     return domains
 
 
-def get_boulder_header(key_bytes):
+def get_boulder_header(key_bytes: bytes) -> Dict[str, Any]:
     """
     Use regular expressions to find crypto values from parsed account key,
     and return a header we can send to our Boulder instance.
@@ -207,7 +207,7 @@ def get_boulder_header(key_bytes):
         r"modulus:\n\s+00:([a-f0-9\:\s]+?)\npublicExponent: ([0-9]+)",
         key_bytes.decode("utf8"),
         re.MULTILINE | re.DOTALL,
-    ).groups()
+    ).groups()  # type: ignore
     pub_exp = "{0:x}".format(int(pub_exp))
     pub_exp = "0{0}".format(pub_exp) if len(pub_exp) % 2 else pub_exp
     header = {
@@ -224,7 +224,7 @@ def get_boulder_header(key_bytes):
     return header
 
 
-def register_account():
+def register_account() -> None:
     """
     Agree to LE TOS
     """
@@ -244,7 +244,7 @@ def register_account():
         raise ValueError("Error registering: {0} {1}".format(code, result))
 
 
-def get_cert(zappa_instance, log=LOGGER, CA=DEFAULT_CA):
+def get_cert(zappa_instance: Zappa, log:logging.Logger=LOGGER, CA: str=DEFAULT_CA) -> bool:
     """
     Call LE to get a new signed CA.
     """
@@ -323,7 +323,7 @@ def get_cert(zappa_instance, log=LOGGER, CA=DEFAULT_CA):
     return True
 
 
-def verify_challenge(uri):
+def verify_challenge(uri: str) -> None:
     """
     Loop until our challenge is verified, else fail.
     """
@@ -334,7 +334,7 @@ def verify_challenge(uri):
         except IOError as e:
             raise ValueError(
                 "Error checking challenge: {0} {1}".format(
-                    e.code, json.loads(e.read().decode("utf8"))
+                    e.errno, json.loads(str(e))
                 )
             )
         if challenge_status["status"] == "pending":
@@ -348,7 +348,7 @@ def verify_challenge(uri):
             )
 
 
-def sign_certificate():
+def sign_certificate() -> Any:
     """
     Get the new certificate.
     Returns the signed bytes.
@@ -379,7 +379,7 @@ def sign_certificate():
     return result
 
 
-def encode_certificate(result):
+def encode_certificate(result: bytes) -> bool:
     """
     Encode cert bytes to PEM encoded cert file.
     """
@@ -400,14 +400,14 @@ def encode_certificate(result):
 ##
 
 
-def _b64(b):
+def _b64(b: bytes) -> str:
     """
     Helper function base64 encode for jose spec
     """
     return base64.urlsafe_b64encode(b).decode("utf8").replace("=", "")
 
 
-def _send_signed_request(url, payload):
+def _send_signed_request(url: str, payload: Dict[str, Any]) -> Any:
     """
     Helper function to make signed requests to Boulder
     """
@@ -431,7 +431,7 @@ def _send_signed_request(url, payload):
     )
     out, err = proc.communicate("{0}.{1}".format(protected64, payload64).encode("utf8"))
     if proc.returncode != 0:  # pragma: no cover
-        raise IOError("OpenSSL Error: {0}".format(err))
+        raise IOError("OpenSSL Error: {!r}".format(err))
     data = json.dumps(
         {
             "header": header,
@@ -468,7 +468,7 @@ def gettempdir() -> str:
 
 
 @atexit.register
-def cleanup():
+def cleanup() -> None:
     """
     Delete any temporary files.
     """

@@ -93,7 +93,7 @@ class ZappaCLI:
     stage_env: Optional[str] = None
 
     # Zappa settings
-    zappa: Zappa = None
+    zappa: Zappa = None  # type: ignore
     zappa_settings: MutableMapping[str, Any] = {}
     load_credentials: bool = True
     disable_progress: bool = False
@@ -115,7 +115,7 @@ class ZappaCLI:
     zip_path: str = ""
     handler_path: Optional[str] = None
     vpc_config = None
-    memory_size = None
+    memory_size:Optional[int] = None
     use_apigateway = None
     lambda_handler = None
     django_settings = None
@@ -126,7 +126,7 @@ class ZappaCLI:
     xray_tracing: Any = False
     aws_kms_key_arn = ""
     context_header_mappings: Dict[str, str] = {}
-    tags: Tuple[Any] = {}
+    tags: Dict[str, Any] = {}
     layers = None
 
     stage_name_env_pattern = re.compile("^[a-zA-Z0-9_]+$")
@@ -514,7 +514,7 @@ class ZappaCLI:
         # apart here instead of relying on argparse.
         if not args.command:
             parser.print_help()
-            return
+            return None
 
         if args.command == "manage" and not self.vargs.get("all"):
             self.stage_env = self.vargs["command_rest"].pop(0)
@@ -535,7 +535,7 @@ class ZappaCLI:
         # before a project has been initialized.)
         if self.command == "init":
             self.init()
-            return
+            return None
 
         # Make sure there isn't a new version available
         if not self.vargs.get("json"):
@@ -568,6 +568,8 @@ class ZappaCLI:
                 # Discussion on exit codes: https://github.com/Miserlou/Zappa/issues/407
                 e.show()
                 sys.exit(e.exit_code)
+
+        return None
 
     def dispatch_command(self, command: str, stage: str) -> None:
         """
@@ -862,37 +864,65 @@ class ZappaCLI:
         except botocore.client.ClientError:
             # Register the Lambda function with that zip as the source
             # You'll also need to define the path to your lambda_handler code.
-            kwargs = dict(
-                handler=self.lambda_handler,
-                description=self.lambda_description,
-                vpc_config=self.vpc_config,
-                dead_letter_config=self.dead_letter_config,
-                timeout=self.timeout_seconds,
-                memory_size=self.memory_size,
-                runtime=self.runtime,
-                aws_environment_variables=self.aws_environment_variables,
-                aws_kms_key_arn=self.aws_kms_key_arn,
-                use_alb=self.use_alb,
-                layers=self.layers,
-                concurrency=self.lambda_concurrency,
-                xray_tracing=self.xray_tracing,
-            )
             if source_zip and source_zip.startswith("s3://"):
                 bucket, key_name = parse_s3_url(source_zip)
-                kwargs["function_name"] = self.lambda_name
-                kwargs["bucket"] = bucket
-                kwargs["s3_key"] = key_name
+                self.lambda_arn = self.zappa.create_lambda_function(
+                    handler=self.lambda_handler,
+                    description=self.lambda_description,
+                    vpc_config=self.vpc_config,
+                    dead_letter_config=self.dead_letter_config,
+                    timeout=self.timeout_seconds,
+                    memory_size=self.memory_size,
+                    runtime=self.runtime,
+                    aws_environment_variables=self.aws_environment_variables,
+                    aws_kms_key_arn=self.aws_kms_key_arn,
+                    use_alb=self.use_alb,
+                    layers=self.layers,
+                    concurrency=self.lambda_concurrency,
+                    xray_tracing=self.xray_tracing,
+                    function_name=self.lambda_name,
+                    bucket=bucket,
+                    s3_key=key_name
+                )
             elif source_zip and not source_zip.startswith("s3://"):
                 with open(source_zip, mode="rb") as fh:
                     byte_stream = fh.read()
-                kwargs["function_name"] = self.lambda_name
-                kwargs["local_zip"] = byte_stream
+                self.lambda_arn = self.zappa.create_lambda_function(
+                    handler=self.lambda_handler,
+                    description=self.lambda_description,
+                    vpc_config=self.vpc_config,
+                    dead_letter_config=self.dead_letter_config,
+                    timeout=self.timeout_seconds,
+                    memory_size=self.memory_size,
+                    runtime=self.runtime,
+                    aws_environment_variables=self.aws_environment_variables,
+                    aws_kms_key_arn=self.aws_kms_key_arn,
+                    use_alb=self.use_alb,
+                    layers=self.layers,
+                    concurrency=self.lambda_concurrency,
+                    xray_tracing=self.xray_tracing,
+                    local_zip=byte_stream,
+                    function_name=self.lambda_name
+                )
             else:
-                kwargs["function_name"] = self.lambda_name
-                kwargs["bucket"] = self.s3_bucket_name
-                kwargs["s3_key"] = handler_file
-
-            self.lambda_arn = self.zappa.create_lambda_function(**kwargs)
+                self.lambda_arn = self.zappa.create_lambda_function(
+                    handler=self.lambda_handler,
+                    description=self.lambda_description,
+                    vpc_config=self.vpc_config,
+                    dead_letter_config=self.dead_letter_config,
+                    timeout=self.timeout_seconds,
+                    memory_size=self.memory_size,
+                    runtime=self.runtime,
+                    aws_environment_variables=self.aws_environment_variables,
+                    aws_kms_key_arn=self.aws_kms_key_arn,
+                    use_alb=self.use_alb,
+                    layers=self.layers,
+                    concurrency=self.lambda_concurrency,
+                    xray_tracing=self.xray_tracing,
+                    function_name=self.lambda_name,
+                    bucket=self.s3_bucket_name,
+                    s3_key=handler_file
+                )
 
         # Schedule events for this deployment
         self.schedule()
@@ -903,14 +933,12 @@ class ZappaCLI:
         )
 
         if self.use_alb:
-            kwargs = dict(
+            self.zappa.deploy_lambda_alb(
                 lambda_arn=self.lambda_arn,
                 lambda_name=self.lambda_name,
                 alb_vpc_config=self.alb_vpc_config,
                 timeout=self.timeout_seconds,
             )
-            self.zappa.deploy_lambda_alb(**kwargs)
-
         if self.use_apigateway:
 
             # Create and configure the API Gateway
@@ -1093,25 +1121,32 @@ class ZappaCLI:
 
         # Register the Lambda function with that zip as the source
         # You'll also need to define the path to your lambda_handler code.
-        kwargs = dict(
-            bucket=self.s3_bucket_name,
-            function_name=self.lambda_name,
-            num_revisions=self.num_retained_versions,
-            concurrency=self.lambda_concurrency,
-        )
         if source_zip and source_zip.startswith("s3://"):
             bucket, key_name = parse_s3_url(source_zip)
-            kwargs.update(dict(bucket=bucket, s3_key=key_name))
-            self.lambda_arn = self.zappa.update_lambda_function(**kwargs)
+            self.lambda_arn = self.zappa.update_lambda_function(
+                    bucket=bucket,
+                    s3_key=key_name,
+                    function_name=self.lambda_name,
+                    num_revisions=self.num_retained_versions,
+                    concurrency=self.lambda_concurrency)
         elif source_zip and not source_zip.startswith("s3://"):
             with open(source_zip, mode="rb") as fh:
                 byte_stream = fh.read()
-            kwargs["local_zip"] = byte_stream
-            self.lambda_arn = self.zappa.update_lambda_function(**kwargs)
+            self.lambda_arn = self.zappa.update_lambda_function(
+                    bucket=self.s3_bucket_name,
+                    function_name=self.lambda_name,
+                    num_revisions=self.num_retained_versions,
+                    concurrency=self.lambda_concurrency,
+                    local_zip=byte_stream)
         else:
             if not no_upload:
-                kwargs["s3_key"] = handler_file
-                self.lambda_arn = self.zappa.update_lambda_function(**kwargs)
+                self.lambda_arn = self.zappa.update_lambda_function(
+                    bucket=self.s3_bucket_name,
+                    function_name=self.lambda_name,
+                    num_revisions=self.num_retained_versions,
+                    concurrency=self.lambda_concurrency,
+                    s3_key=handler_file
+                    )
 
         # Remove the uploaded zip from S3, because it is now registered..
         if not source_zip and not no_upload:
@@ -1307,7 +1342,7 @@ class ZappaCLI:
                 api_id = self.zappa.get_api_id(self.lambda_name)
                 self.zappa.remove_api_key(api_id, self.api_stage)
 
-            gateway_id = self.zappa.undeploy_api_gateway(
+            gateway_id = self.zappa.undeploy_api_gateway(  # type: ignore
                 self.lambda_name, domain_name=domain_name, base_path=base_path
             )
 
@@ -1953,6 +1988,7 @@ class ZappaCLI:
             has_flask = False
 
         print("")
+        matches: Optional[List[str]] = None
         # App-specific
         if has_django:  # pragma: no cover
             click.echo(
@@ -1967,7 +2003,6 @@ class ZappaCLI:
             )
             django_settings = ""
 
-            matches: Optional[List[str]] = detect_django_settings()
             while django_settings == "":
                 if matches:
                     click.echo(
@@ -1992,7 +2027,7 @@ class ZappaCLI:
             django_settings = django_settings.replace("'", "")
             django_settings = django_settings.replace('"', "")
         else:
-            matches: Optional[List[str]] = None
+            
             if has_flask:
                 click.echo(
                     "It looks like this is a "

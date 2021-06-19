@@ -92,7 +92,7 @@ import os
 import time
 import uuid
 from functools import update_wrapper, wraps
-from typing import Optional, Dict
+from typing import Optional, Dict, Callable, Any, List
 
 import boto3
 import botocore
@@ -380,7 +380,7 @@ def run(
 # However, this needs to pass inspect.getargspec() in handler.py which does not take classes
 # Wrapper written to take optional arguments
 # http://chase-seibert.github.io/blog/2013/12/17/python-decorator-optional-parameter.html
-def task(*args, **kwargs):
+def task(*args: List[Any], **kwargs: Dict[str: Any]):
     """Async task decorator so that running
 
     Args:
@@ -413,7 +413,7 @@ def task(*args, **kwargs):
 
     capture_response = kwargs.get("capture_response", False)
 
-    def func_wrapper(func: callable):
+    def func_wrapper(func: Callable) -> Callable:
 
         task_path = get_func_task_path(func)
 
@@ -454,15 +454,15 @@ def task(*args, **kwargs):
 
         update_wrapper(_run_async, func)
 
-        _run_async.service = service
-        _run_async.sync = func
+        _run_async.service = service  # type: ignore
+        _run_async.sync = func  # type: ignore
 
         return _run_async
 
     return func_wrapper(func) if func else func_wrapper
 
 
-def task_sns(func: callable):
+def task_sns(func: Callable):  # type: ignore
     """
     SNS-based task dispatcher. Functions the same way as task()
     """
@@ -474,7 +474,7 @@ def task_sns(func: callable):
 ##
 
 
-def import_and_get_task(task_path: str) -> callable:
+def import_and_get_task(task_path: str) -> Callable:  # type: ignore
     """
     Given a modular path to a function, import that module
     and return the function.
@@ -485,11 +485,11 @@ def import_and_get_task(task_path: str) -> callable:
     return app_function
 
 
-def get_func_task_path(func: callable) -> str:
+def get_func_task_path(func: Callable) -> str:  # type: ignore
     """
     Format the modular task path for a function via inspection.
     """
-    module_path = inspect.getmodule(func).__name__
+    module_path = inspect.getmodule(func).__name__  # type: ignore
     task_path = "{module_path}.{func_name}".format(
         module_path=module_path, func_name=func.__name__
     )

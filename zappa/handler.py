@@ -163,13 +163,13 @@ class LambdaHandler:
                 try:  # Support both for tests
                     from zappa.ext.django_zappa import get_django_wsgi
                 except ImportError:  # pragma: no cover
-                    from django_zappa_app import get_django_wsgi
+                    from django_zappa_app import get_django_wsgi  # type: ignore
 
                 # Get the Django WSGI app from our extension
                 wsgi_app_function = get_django_wsgi(self.settings.DJANGO_SETTINGS)  # type: ignore
                 self.trailing_slash = True
 
-            self.wsgi_app = ZappaWSGIMiddleware(wsgi_app_function)
+            self.wsgi_app = ZappaWSGIMiddleware(wsgi_app_function)  # type: ignore
 
     def load_remote_project_archive(self, project_zip_path: str) -> bool:
         """
@@ -437,7 +437,7 @@ class LambdaHandler:
             try:  # Support both for tests
                 from zappa.ext.django_zappa import get_django_wsgi
             except ImportError as e:  # pragma: no cover
-                from django_zappa_app import get_django_wsgi
+                from django_zappa_app import get_django_wsgi  # type: ignore
 
             # Get the Django WSGI app from our extension
             # We don't actually need the function,
